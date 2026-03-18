@@ -99,6 +99,8 @@ input, textarea, select {
   border-radius: 4px;
 }
 
+/* Tender detail: .tender-tab-scroll = scrollcontainer, .tender-tab-actions = actiebalk onder tabs (opmaak inline in componenten) */
+
 /* Utility classes */
 .font-syne { font-family: 'Syne', sans-serif; }
 .font-plex { font-family: 'IBM Plex Sans', sans-serif; }

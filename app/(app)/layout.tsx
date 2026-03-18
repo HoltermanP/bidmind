@@ -9,7 +9,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
         <Sidebar />
         <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
           <TopBar />
-          <main style={{ flex: 1, overflowY: 'auto', background: '#F7F6F2' }}>
+          <main style={{ flex: 1, minHeight: 0, overflowY: 'auto', background: '#F7F6F2' }}>
             {children}
           </main>
         </div>

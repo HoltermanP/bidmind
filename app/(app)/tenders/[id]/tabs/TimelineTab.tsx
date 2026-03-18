@@ -86,7 +86,18 @@ export default function TimelineTab({ tender, activities, notes, onActivitiesCha
   }
 
   return (
-    <div style={{ maxWidth: 700, display: 'flex', flexDirection: 'column', gap: 20 }}>
+    <div style={{ maxWidth: 700, display: 'flex', flexDirection: 'column', gap: 20, minWidth: 0 }}>
+      {/* Actiebalk –zelfde opmaak als andere tabs */}
+      <div
+        className="tender-tab-actions"
+        style={{
+          padding: '14px 0',
+          marginBottom: 4,
+          borderBottom: '1px solid #E5E7EB',
+        }}
+      >
+        <span style={{ fontSize: 13, fontWeight: 700, fontFamily: 'Syne, sans-serif', color: 'var(--navy)' }}>Tijdlijn</span>
+      </div>
       {/* Add note */}
       <div style={{ background: 'white', border: '1px solid var(--border)', borderRadius: 4, padding: 20 }}>
         <h3 style={{ fontSize: 14, fontFamily: 'Syne, sans-serif', fontWeight: 700, color: 'var(--navy)', marginBottom: 14 }}>

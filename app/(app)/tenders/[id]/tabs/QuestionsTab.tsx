@@ -123,21 +123,17 @@ export default function QuestionsTab({ tender, questions, onQuestionsChange, doc
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16, minWidth: 0, maxWidth: '100%' }}>
-      {/* Actions header – sticky, knoppen wrappen zodat niets wegvalt */}
+      {/* Actiebalk – vaste positie, geen sticky, duidelijke scheiding van tab-balk */}
       <div
+        className="tender-tab-actions"
         style={{
           display: 'flex',
           gap: 10,
           alignItems: 'center',
           flexWrap: 'wrap',
-          position: 'sticky',
-          top: 0,
-          zIndex: 10,
-          background: 'white',
-          padding: '12px 0',
-          margin: '-12px 0 0',
-          borderBottom: '1px solid #F3F4F6',
-          marginBottom: -1,
+          padding: '14px 0',
+          marginBottom: 20,
+          borderBottom: '1px solid #E5E7EB',
           minWidth: 0,
           maxWidth: '100%',
         }}
@@ -305,41 +301,44 @@ export default function QuestionsTab({ tender, questions, onQuestionsChange, doc
                       )}
                     </div>
 
-                    {/* Actions */}
-                    <div style={{ display: 'flex', gap: 4, flexShrink: 0 }}>
+                    {/* Acties – Button component voor consistente stijl en betere klikbaarheid */}
+                    <div style={{ display: 'flex', gap: 6, flexShrink: 0, alignItems: 'flex-start' }}>
                       {q.status === 'draft' && (
-                        <button
+                        <Button
+                          size="sm"
                           onClick={() => updateQuestion(q.id, { status: 'approved' })}
                           title="Goedkeuren"
-                          style={{ background: '#F0FDF4', border: '1px solid #A7F3D0', borderRadius: 3, padding: '3px 8px', fontSize: 11, cursor: 'pointer', color: '#059669', fontWeight: 600 }}
+                          style={{ background: '#F0FDF4', color: '#059669', border: '1px solid #A7F3D0' }}
                         >
                           Goedkeuren
-                        </button>
+                        </Button>
                       )}
                       {q.status === 'approved' && (
-                        <button
+                        <Button
+                          size="sm"
                           onClick={() => updateQuestion(q.id, { status: 'submitted', submittedAt: new Date() })}
                           title="Markeer als ingediend"
-                          style={{ background: '#E0F2FE', border: '1px solid #BAE6FD', borderRadius: 3, padding: '3px 8px', fontSize: 11, cursor: 'pointer', color: '#075985', fontWeight: 600 }}
+                          style={{ background: '#E0F2FE', color: '#075985', border: '1px solid #BAE6FD' }}
                         >
                           Ingediend
-                        </button>
+                        </Button>
                       )}
                       {q.status === 'submitted' && (
-                        <button
+                        <Button
+                          size="sm"
                           onClick={() => { setEditingAnswer(q.id); setAnswerText(q.answerText || '') }}
                           title="Antwoord toevoegen"
-                          style={{ background: '#FEF3C7', border: '1px solid #FDE68A', borderRadius: 3, padding: '3px 8px', fontSize: 11, cursor: 'pointer', color: '#92400E', fontWeight: 600 }}
+                          style={{ background: '#FEF3C7', color: '#92400E', border: '1px solid #FDE68A' }}
                         >
                           + Antwoord
-                        </button>
+                        </Button>
                       )}
                       <button
                         onClick={() => deleteQuestion(q.id)}
-                        style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#D1D5DB', padding: '3px 4px' }}
+                        style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#9CA3AF', padding: '5px 6px', borderRadius: 4 }}
                         title="Verwijderen"
                       >
-                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>
                       </button>
                     </div>
                   </div>

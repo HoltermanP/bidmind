@@ -29,5 +29,9 @@ export default async function TenderDetailPage({ params }: { params: Promise<{ i
   const data = await getTenderData(id)
   if (!data) notFound()
 
-  return <TenderDetailClient {...data} />
+  return (
+    <div style={{ height: '100%', minHeight: 0, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
+      <TenderDetailClient {...data} />
+    </div>
+  )
 }

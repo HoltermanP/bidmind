@@ -36,7 +36,7 @@ export default async function TeamPage() {
   const teamData = await getTeamData()
 
   return (
-    <div style={{ padding: '32px 32px 48px' }}>
+    <div style={{ padding: '16px 32px 48px' }}>
       <div style={{ marginBottom: 28 }}>
         <h1 style={{ fontSize: 26, fontFamily: 'Syne, sans-serif', fontWeight: 700, color: '#0A0F1E', marginBottom: 4 }}>
           Team

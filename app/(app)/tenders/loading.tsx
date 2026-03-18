@@ -2,7 +2,7 @@ import Skeleton from '@/components/ui/Skeleton'
 
 export default function TendersLoading() {
   return (
-    <div style={{ padding: '32px 32px 48px' }}>
+    <div style={{ padding: '16px 32px 48px' }}>
       <Skeleton width={150} height={28} style={{ marginBottom: 8 }} />
       <Skeleton width={200} height={16} style={{ marginBottom: 24 }} />
 

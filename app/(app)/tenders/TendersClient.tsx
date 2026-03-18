@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useMemo, useCallback } from 'react'
+import { useState, useMemo, useCallback, useEffect } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { motion } from 'framer-motion'
@@ -75,23 +75,45 @@ export default function TendersClient({ initialTenders, userMap, allUsers, initi
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc')
   const [showCreatePanel, setShowCreatePanel] = useState(false)
   const [showTenderNedPanel, setShowTenderNedPanel] = useState(false)
-  const [tenderNedPage, setTenderNedPage] = useState(0)
   const [tenderNedData, setTenderNedData] = useState<{
     content: TenderNedItem[]
     totalElements: number
-    totalPages: number
-    size: number
-    number: number
   } | null>(null)
   const [tenderNedLoading, setTenderNedLoading] = useState(false)
   const [importingId, setImportingId] = useState<string | null>(null)
+  const [tenderNedSearch, setTenderNedSearch] = useState('')
+  const [tenderNedProcedureFilter, setTenderNedProcedureFilter] = useState<string>('all')
+  const [tenderNedSortBy, setTenderNedSortBy] = useState<'title' | 'authority' | 'deadline' | 'procedure'>('deadline')
+  const [tenderNedSortDir, setTenderNedSortDir] = useState<'asc' | 'desc'>('asc')
+  const [tenderNedViewPage, setTenderNedViewPage] = useState(0)
+  const TENDER_NED_PAGE_SIZE = 20
+  const [deletingId, setDeletingId] = useState<string | null>(null)
   const router = useRouter()
   const { toast } = useToast()
 
-  const loadTenderNed = useCallback(async (page: number = 0) => {
+  const handleDeleteTender = useCallback(async (e: React.MouseEvent, tenderId: string, tenderTitle: string) => {
+    e.stopPropagation()
+    if (!confirm(`Weet je zeker dat je "${tenderTitle || 'deze tender'}" wilt verwijderen? Alle acties, documenten, notities, vragen en secties worden permanent verwijderd.`)) return
+    setDeletingId(tenderId)
+    try {
+      const res = await fetch(`/api/tenders/${tenderId}`, { method: 'DELETE' })
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}))
+        throw new Error(data?.error ?? 'Verwijderen mislukt')
+      }
+      toast('Tender en alle bijbehorende gegevens verwijderd', 'success')
+      router.refresh()
+    } catch (err) {
+      toast(err instanceof Error ? err.message : 'Verwijderen mislukt', 'error')
+    } finally {
+      setDeletingId(null)
+    }
+  }, [router, toast])
+
+  const loadTenderNed = useCallback(async () => {
     setTenderNedLoading(true)
     try {
-      const res = await fetch(`/api/tenderned/publicaties?page=${page}&size=20`)
+      const res = await fetch('/api/tenderned/publicaties?all=true')
       if (!res.ok) {
         const body = await res.json().catch(() => ({}))
         const msg = body?.error || res.statusText || 'Ophalen mislukt'
@@ -101,11 +123,8 @@ export default function TendersClient({ initialTenders, userMap, allUsers, initi
       setTenderNedData({
         content: data.content,
         totalElements: data.totalElements,
-        totalPages: data.totalPages,
-        size: data.size,
-        number: data.number,
       })
-      setTenderNedPage(page)
+      setTenderNedViewPage(0)
     } catch (err) {
       const message = err instanceof Error ? err.message : 'TenderNed aankondigingen konden niet worden opgehaald'
       toast(message, 'error')
@@ -117,8 +136,76 @@ export default function TendersClient({ initialTenders, userMap, allUsers, initi
   const openTenderNed = useCallback(() => {
     setShowTenderNedPanel(true)
     setTenderNedData(null)
-    loadTenderNed(0)
+    setTenderNedSearch('')
+    setTenderNedProcedureFilter('all')
+    setTenderNedSortBy('deadline')
+    setTenderNedSortDir('asc')
+    setTenderNedViewPage(0)
+    loadTenderNed()
   }, [loadTenderNed])
+
+  const tenderNedProcedureOptions = useMemo(() => {
+    if (!tenderNedData?.content?.length) return []
+    const set = new Set<string>()
+    tenderNedData.content.forEach((item) => {
+      if (item.procedureType?.trim()) set.add(item.procedureType.trim())
+    })
+    return Array.from(set).sort((a, b) => a.localeCompare(b))
+  }, [tenderNedData?.content])
+
+  const tenderNedFilteredAndSorted = useMemo(() => {
+    if (!tenderNedData?.content) return []
+    let list = [...tenderNedData.content]
+    if (tenderNedSearch.trim()) {
+      const q = tenderNedSearch.toLowerCase().trim()
+      list = list.filter(
+        (item) =>
+          item.title?.toLowerCase().includes(q) ||
+          item.referenceNumber?.toLowerCase().includes(q) ||
+          item.contractingAuthority?.toLowerCase().includes(q) ||
+          item.description?.toLowerCase().includes(q)
+      )
+    }
+    if (tenderNedProcedureFilter !== 'all') {
+      list = list.filter((item) => (item.procedureType?.trim() ?? '') === tenderNedProcedureFilter)
+    }
+    list.sort((a, b) => {
+      let cmp = 0
+      if (tenderNedSortBy === 'title') {
+        cmp = (a.title ?? '').localeCompare(b.title ?? '', 'nl')
+      } else if (tenderNedSortBy === 'authority') {
+        cmp = (a.contractingAuthority ?? '').localeCompare(b.contractingAuthority ?? '', 'nl')
+      } else if (tenderNedSortBy === 'deadline') {
+        const da = a.deadlineSubmission ? new Date(a.deadlineSubmission).getTime() : 0
+        const db = b.deadlineSubmission ? new Date(b.deadlineSubmission).getTime() : 0
+        cmp = da - db
+      } else {
+        cmp = (a.procedureType ?? '').localeCompare(b.procedureType ?? '', 'nl')
+      }
+      return tenderNedSortDir === 'asc' ? cmp : -cmp
+    })
+    return list
+  }, [tenderNedData?.content, tenderNedSearch, tenderNedProcedureFilter, tenderNedSortBy, tenderNedSortDir])
+
+  useEffect(() => {
+    setTenderNedViewPage(0)
+  }, [tenderNedSearch, tenderNedProcedureFilter])
+
+  const tenderNedTotalFilteredPages = Math.max(1, Math.ceil(tenderNedFilteredAndSorted.length / TENDER_NED_PAGE_SIZE))
+  useEffect(() => {
+    if (tenderNedViewPage >= tenderNedTotalFilteredPages) {
+      setTenderNedViewPage(Math.max(0, tenderNedTotalFilteredPages - 1))
+    }
+  }, [tenderNedTotalFilteredPages, tenderNedViewPage])
+  const tenderNedCurrentPage = Math.min(tenderNedViewPage, tenderNedTotalFilteredPages - 1)
+  const tenderNedPageItems = useMemo(
+    () =>
+      tenderNedFilteredAndSorted.slice(
+        tenderNedCurrentPage * TENDER_NED_PAGE_SIZE,
+        (tenderNedCurrentPage + 1) * TENDER_NED_PAGE_SIZE
+      ),
+    [tenderNedFilteredAndSorted, tenderNedCurrentPage]
+  )
 
   const importAsTender = useCallback(async (item: TenderNedItem) => {
     setImportingId(item.publicatieId)
@@ -189,8 +276,16 @@ export default function TendersClient({ initialTenders, userMap, allUsers, initi
     else { setSortBy(col); setSortDir('asc') }
   }
 
+  const toggleTenderNedSort = (col: 'title' | 'authority' | 'deadline' | 'procedure') => {
+    if (tenderNedSortBy === col) setTenderNedSortDir((d) => (d === 'asc' ? 'desc' : 'asc'))
+    else {
+      setTenderNedSortBy(col)
+      setTenderNedSortDir(col === 'deadline' ? 'asc' : 'asc')
+    }
+  }
+
   return (
-    <div style={{ padding: '32px 32px 48px', position: 'relative' }}>
+    <div style={{ padding: '16px 32px 48px', position: 'relative' }}>
       {/* Header */}
       <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 24 }}>
         <div>
@@ -268,22 +363,106 @@ export default function TendersClient({ initialTenders, userMap, allUsers, initi
             </div>
             <div style={{ flex: 1, overflow: 'auto', padding: 20 }}>
               {tenderNedLoading ? (
-                <div style={{ padding: 48, textAlign: 'center', color: 'var(--text-secondary)' }}>Aankondigingen ophalen…</div>
+                <div style={{ padding: 48, textAlign: 'center', color: 'var(--text-secondary)' }}>Alle aankondigingen ophalen…</div>
               ) : tenderNedData ? (
                 <>
+                  <div style={{ display: 'flex', gap: 10, marginBottom: 16, flexWrap: 'wrap', alignItems: 'center' }}>
+                    <div style={{ position: 'relative', flex: '1 1 200px', minWidth: 180 }}>
+                      <svg style={{ position: 'absolute', left: 8, top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none' }} width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="var(--muted)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+                      </svg>
+                      <input
+                        value={tenderNedSearch}
+                        onChange={(e) => setTenderNedSearch(e.target.value)}
+                        placeholder="Zoek op titel, kenmerk, dienst..."
+                        style={{
+                          width: '100%',
+                          paddingLeft: 28,
+                          paddingRight: 10,
+                          paddingBlock: 6,
+                          border: '1px solid var(--border)',
+                          borderRadius: 4,
+                          fontSize: 13,
+                          fontFamily: 'IBM Plex Sans, sans-serif',
+                          outline: 'none',
+                          color: 'var(--text-primary)',
+                        }}
+                      />
+                    </div>
+                    <select
+                      value={tenderNedProcedureFilter}
+                      onChange={(e) => setTenderNedProcedureFilter(e.target.value)}
+                      style={{
+                        padding: '6px 10px',
+                        border: '1px solid var(--border)',
+                        borderRadius: 4,
+                        fontSize: 13,
+                        fontFamily: 'IBM Plex Sans, sans-serif',
+                        color: 'var(--text-primary)',
+                        background: 'white',
+                        cursor: 'pointer',
+                        outline: 'none',
+                        minWidth: 200,
+                      }}
+                    >
+                      <option value="all">Alle procedures</option>
+                      {tenderNedProcedureOptions.map((p) => (
+                        <option key={p} value={p}>{p}</option>
+                      ))}
+                    </select>
+                    {(tenderNedSearch || tenderNedProcedureFilter !== 'all') && (
+                      <button
+                        onClick={() => { setTenderNedSearch(''); setTenderNedProcedureFilter('all') }}
+                        style={{ background: 'none', border: 'none', color: 'var(--muted)', cursor: 'pointer', fontSize: 12, fontFamily: 'IBM Plex Sans, sans-serif', display: 'flex', alignItems: 'center', gap: 4 }}
+                      >
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                        Wis filters
+                      </button>
+                    )}
+                  </div>
+                  <p style={{ fontSize: 12, color: 'var(--text-secondary)', marginBottom: 8 }}>
+                    {tenderNedFilteredAndSorted.length} resultaten van {tenderNedData.content.length} aankondigingen
+                    {(tenderNedSearch || tenderNedProcedureFilter !== 'all') && ' (gefilterd)'}
+                  </p>
                   <div style={{ background: 'var(--off-white)', border: '1px solid var(--border)', borderRadius: 4, overflow: 'hidden' }}>
                     <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
                       <thead>
                         <tr style={{ borderBottom: '2px solid var(--border)' }}>
-                          <th style={{ padding: '10px 12px', textAlign: 'left', fontWeight: 600, color: 'var(--text-secondary)' }}>Titel</th>
-                          <th style={{ padding: '10px 12px', textAlign: 'left', fontWeight: 600, color: 'var(--text-secondary)' }}>Aanbestedende dienst</th>
-                          <th style={{ padding: '10px 12px', textAlign: 'left', fontWeight: 600, color: 'var(--text-secondary)' }}>Sluitingsdatum</th>
-                          <th style={{ padding: '10px 12px', textAlign: 'left', fontWeight: 600, color: 'var(--text-secondary)' }}>Procedure</th>
+                          {[
+                            { key: 'title' as const, label: 'Titel' },
+                            { key: 'authority' as const, label: 'Aanbestedende dienst' },
+                            { key: 'deadline' as const, label: 'Sluitingsdatum' },
+                            { key: 'procedure' as const, label: 'Procedure' },
+                          ].map(({ key, label }) => (
+                            <th
+                              key={key}
+                              style={{
+                                padding: '10px 12px',
+                                textAlign: 'left',
+                                fontWeight: 600,
+                                color: 'var(--text-secondary)',
+                                cursor: 'pointer',
+                                userSelect: 'none',
+                              }}
+                              onClick={() => toggleTenderNedSort(key)}
+                            >
+                              {label}
+                              {tenderNedSortBy === key && (
+                                <span style={{ marginLeft: 4 }}>{tenderNedSortDir === 'asc' ? '↑' : '↓'}</span>
+                              )}
+                            </th>
+                          ))}
                           <th style={{ padding: '10px 12px', width: 140 }}></th>
                         </tr>
                       </thead>
                       <tbody>
-                        {tenderNedData.content.map((item) => (
+                        {tenderNedFilteredAndSorted.length === 0 ? (
+                          <tr>
+                            <td colSpan={5} style={{ padding: 32, textAlign: 'center', color: 'var(--text-secondary)' }}>
+                              Geen aankondigingen passen bij de gekozen zoek- of filteropties. Pas filters aan of wis ze.
+                            </td>
+                          </tr>
+                        ) : tenderNedPageItems.map((item) => (
                           <tr key={item.publicatieId} style={{ borderBottom: '1px solid #F3F4F6' }}>
                             <td style={{ padding: '10px 12px' }}>
                               <div style={{ fontWeight: 600, color: 'var(--navy)' }}>{item.title}</div>
@@ -311,25 +490,25 @@ export default function TendersClient({ initialTenders, userMap, allUsers, initi
                       </tbody>
                     </table>
                   </div>
-                  {tenderNedData.totalPages > 1 && (
+                  {tenderNedTotalFilteredPages > 1 && (
                     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: 16 }}>
                       <span style={{ fontSize: 12, color: 'var(--text-secondary)' }}>
-                        Pagina {tenderNedData.number + 1} van {tenderNedData.totalPages} ({tenderNedData.totalElements.toLocaleString('nl-NL')} aankondigingen)
+                        Pagina {tenderNedCurrentPage + 1} van {tenderNedTotalFilteredPages} ({tenderNedFilteredAndSorted.length.toLocaleString('nl-NL')} resultaten)
                       </span>
                       <div style={{ display: 'flex', gap: 8 }}>
                         <Button
                           variant="secondary"
                           size="sm"
-                          onClick={() => loadTenderNed(tenderNedPage - 1)}
-                          disabled={tenderNedPage <= 0}
+                          onClick={() => setTenderNedViewPage((p) => Math.max(0, p - 1))}
+                          disabled={tenderNedCurrentPage <= 0}
                         >
                           Vorige
                         </Button>
                         <Button
                           variant="secondary"
                           size="sm"
-                          onClick={() => loadTenderNed(tenderNedPage + 1)}
-                          disabled={tenderNedPage >= tenderNedData.totalPages - 1}
+                          onClick={() => setTenderNedViewPage((p) => Math.min(tenderNedTotalFilteredPages - 1, p + 1))}
+                          disabled={tenderNedCurrentPage >= tenderNedTotalFilteredPages - 1}
                         >
                           Volgende
                         </Button>
@@ -446,6 +625,7 @@ export default function TendersClient({ initialTenders, userMap, allUsers, initi
                   { label: 'Manager', key: null, width: 80 },
                   { label: 'Win%', key: null, width: 60 },
                   { label: 'Go/No-Go', key: null, width: 90 },
+                  { label: '', key: null, width: 52 },
                 ].map((col) => (
                   <th
                     key={col.label}
@@ -475,7 +655,7 @@ export default function TendersClient({ initialTenders, userMap, allUsers, initi
             <tbody>
               {filtered.length === 0 ? (
                 <tr>
-                  <td colSpan={9} style={{ padding: '48px 20px', textAlign: 'center', color: 'var(--muted)' }}>
+                  <td colSpan={10} style={{ padding: '48px 20px', textAlign: 'center', color: 'var(--muted)' }}>
                     <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12 }}>
                       <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="#D1D5DB" strokeWidth="1">
                         <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
@@ -566,6 +746,43 @@ export default function TendersClient({ initialTenders, userMap, allUsers, initi
                       </td>
                       <td style={{ padding: '11px 14px' }}>
                         <Badge variant="gonogo" value={tender.goNoGo || 'pending'} />
+                      </td>
+                      <td style={{ padding: '11px 14px', width: 52 }} onClick={(e) => e.stopPropagation()}>
+                        <button
+                          type="button"
+                          aria-label="Tender verwijderen"
+                          disabled={deletingId === tender.id}
+                          onClick={(ev) => handleDeleteTender(ev, tender.id, tender.title || '')}
+                          style={{
+                            padding: 6,
+                            border: 'none',
+                            background: 'transparent',
+                            color: 'var(--muted)',
+                            cursor: deletingId === tender.id ? 'wait' : 'pointer',
+                            borderRadius: 4,
+                          }}
+                          onMouseEnter={(ev) => {
+                            if (deletingId !== tender.id) {
+                              ev.currentTarget.style.background = 'var(--off-white)'
+                              ev.currentTarget.style.color = 'var(--error, #DC2626)'
+                            }
+                          }}
+                          onMouseLeave={(ev) => {
+                            ev.currentTarget.style.background = 'transparent'
+                            ev.currentTarget.style.color = 'var(--muted)'
+                          }}
+                        >
+                          {deletingId === tender.id ? (
+                            <span style={{ fontSize: 12 }}>…</span>
+                          ) : (
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                              <polyline points="3 6 5 6 21 6" />
+                              <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+                              <line x1="10" y1="11" x2="10" y2="17" />
+                              <line x1="14" y1="11" x2="14" y2="17" />
+                            </svg>
+                          )}
+                        </button>
                       </td>
                     </motion.tr>
                   )

@@ -60,7 +60,7 @@ export default function KalenderClient({ tenders }: Props) {
   }
 
   return (
-    <div style={{ padding: '32px 32px 48px' }}>
+    <div style={{ padding: '16px 32px 48px' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 24 }}>
         <div>
           <h1 style={{ fontSize: 26, fontFamily: 'Syne, sans-serif', fontWeight: 700, color: 'var(--navy)', marginBottom: 4 }}>

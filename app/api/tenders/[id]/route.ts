@@ -76,9 +76,15 @@ export async function DELETE(request: NextRequest, { params }: { params: Promise
     if (!db) return NextResponse.json({ error: 'Database not configured' }, { status: 503 })
 
     const { id } = await params
-    await db.update(tenders).set({ status: 'withdrawn', updatedAt: new Date() }).where(eq(tenders.id, id))
+    const [existing] = await db.select().from(tenders).where(eq(tenders.id, id))
+    if (!existing) return NextResponse.json({ error: 'Not found' }, { status: 404 })
+
+    // Verwijder tender; door ON DELETE CASCADE worden automatisch verwijderd:
+    // tender_activities, tender_documents, tender_notes, tender_questions, tender_sections
+    await db.delete(tenders).where(eq(tenders.id, id))
     return NextResponse.json({ success: true })
   } catch (error) {
+    console.error('DELETE /api/tenders/[id] error:', error)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }

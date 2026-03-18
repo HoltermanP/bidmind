@@ -54,7 +54,18 @@ export default function OverviewTab({ tender, onUpdate, allUsers, userMap }: Pro
   }
 
   return (
-    <div style={{ display: 'grid', gap: 24, maxWidth: 700 }}>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 24, minWidth: 0, maxWidth: 700 }}>
+      {/* Actiebalk –zelfde opmaak als andere tabs */}
+      <div
+        className="tender-tab-actions"
+        style={{
+          padding: '14px 0',
+          marginBottom: 4,
+          borderBottom: '1px solid #E5E7EB',
+        }}
+      >
+        <span style={{ fontSize: 13, fontWeight: 700, fontFamily: 'Syne, sans-serif', color: 'var(--navy)' }}>Overzicht</span>
+      </div>
       {/* Tender info card */}
       <div style={{ background: 'white', border: '1px solid var(--border)', borderRadius: 4, padding: 24 }}>
         <h3 style={{ fontSize: 14, fontFamily: 'Syne, sans-serif', fontWeight: 700, color: 'var(--navy)', marginBottom: 18 }}>

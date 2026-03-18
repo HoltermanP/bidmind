@@ -266,19 +266,31 @@ export default function SectionsTab({ tender, sections, onSectionsChange, docume
   }
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-      {/* Header */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 16, minWidth: 0, maxWidth: '100%' }}>
+      {/* Actiebalk –zelfde opmaak als NVI Vragen en Documenten */}
+      <div
+        className="tender-tab-actions"
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: 12,
+          flexWrap: 'wrap',
+          padding: '14px 0',
+          marginBottom: 20,
+          borderBottom: '1px solid #E5E7EB',
+          minWidth: 0,
+        }}
+      >
         <div>
-          <div style={{ fontSize: 12, color: '#6B7280', marginBottom: 4 }}>Voortgang aanbieding</div>
+          <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginBottom: 4 }}>Voortgang aanbieding</div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
             <div style={{ width: 180, height: 6, background: 'var(--border)', borderRadius: 3, overflow: 'hidden' }}>
               <div style={{ width: `${total > 0 ? (approved / total) * 100 : 0}%`, height: '100%', background: '#059669', borderRadius: 3, transition: 'width 0.3s' }} />
             </div>
-            <span style={{ fontSize: 12, color: '#6B7280' }}>{approved}/{total} goedgekeurd</span>
+            <span style={{ fontSize: 12, color: 'var(--text-secondary)' }}>{approved}/{total} goedgekeurd</span>
           </div>
         </div>
-        <div style={{ marginLeft: 'auto' }}>
+        <div style={{ marginLeft: 'auto', flexShrink: 0 }}>
           <Button
             size="sm"
             variant="secondary"

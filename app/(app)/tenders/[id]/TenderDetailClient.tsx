@@ -88,20 +88,26 @@ export default function TenderDetailClient({ tender: initialTender, documents: i
   const approvedSections = sections.filter((s: any) => s.status === 'approved').length
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: '100%', minHeight: 0, overflow: 'hidden' }}>
-      {/* Sticky Header */}
+    <div
+      className="tender-detail-root"
+      style={{
+        display: 'flex',
+        flexDirection: 'column',
+        height: '100%',
+        minHeight: 0,
+        overflow: 'hidden',
+      }}
+    >
+      {/* Header – geen sticky/z-index zodat body-knoppen nooit bedekt worden */}
       <div style={{
         background: 'white',
         borderBottom: '1px solid var(--border)',
         padding: '0 32px',
-        position: 'sticky',
-        top: 52,
-        zIndex: 20,
         flexShrink: 0,
         minWidth: 0,
       }}>
-        {/* Top row */}
-        <div style={{ paddingBlock: 8, display: 'flex', alignItems: 'flex-start', gap: 12, flexWrap: 'wrap' }}>
+        {/* Top row – minder verticale ruimte zodat kop omhoog komt */}
+        <div style={{ paddingTop: 4, paddingBottom: 6, display: 'flex', alignItems: 'flex-start', gap: 12, flexWrap: 'wrap' }}>
           <Link
             href="/tenders"
             style={{ color: 'var(--slate-blue)', fontSize: 12, display: 'flex', alignItems: 'center', gap: 4, textDecoration: 'none', marginTop: 2, flexShrink: 0 }}
@@ -227,8 +233,8 @@ export default function TenderDetailClient({ tender: initialTender, documents: i
           </div>
         </div>
 
-        {/* Tabs */}
-        <div style={{ position: 'relative', display: 'flex', gap: 0, flexShrink: 0, overflowX: 'auto', overflowY: 'hidden' }}>
+        {/* Tabs – duidelijke onderrand, body valt niet onder dit blok */}
+        <div style={{ position: 'relative', display: 'flex', gap: 0, flexShrink: 0, overflowX: 'auto', overflowY: 'hidden', paddingBottom: 10 }}>
           {TABS.map((tab) => (
             <button
               key={tab.id}
@@ -278,10 +284,10 @@ export default function TenderDetailClient({ tender: initialTender, documents: i
         </div>
       </div>
 
-      {/* Main content */}
+      {/* Main content – alleen hier scrollt; header blijft in flow */}
       <div style={{ display: 'flex', flex: 1, overflow: 'hidden', minHeight: 0 }}>
-        {/* Left: Tab content – minWidth zodat inhoud niet wordt afgesneden */}
-        <div style={{ flex: 1, minWidth: 360, overflow: 'auto', padding: '28px 32px', boxSizing: 'border-box' }}>
+        {/* Left: Tab content – voldoende ruimte onder tab-balk */}
+        <div style={{ flex: 1, minWidth: 360, overflow: 'auto', padding: '24px 32px 32px', boxSizing: 'border-box' }} className="tender-tab-scroll">
           <AnimatePresence mode="wait">
             <motion.div
               key={activeTab}
@@ -289,6 +295,7 @@ export default function TenderDetailClient({ tender: initialTender, documents: i
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0 }}
               transition={{ duration: 0.15 }}
+              style={{ display: 'flex', flexDirection: 'column', gap: 0, minWidth: 0 }}
             >
               {activeTab === 'overview' && (
                 <OverviewTab tender={tender} onUpdate={patchTender} allUsers={allUsers} userMap={userMap} />

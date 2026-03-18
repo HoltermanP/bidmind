@@ -128,9 +128,37 @@ export default function DocumentsTab({ tender, documents, onDocumentsChange, use
   }
 
   return (
-    <div style={{ display: 'flex', gap: 20, height: '100%' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 0, minWidth: 0, maxWidth: '100%' }}>
+      {/* Actiebalk –zelfde opmaak als NVI Vragen en Aanbieding */}
+      <div
+        className="tender-tab-actions"
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: 10,
+          flexWrap: 'wrap',
+          padding: '14px 0',
+          marginBottom: 20,
+          borderBottom: '1px solid #E5E7EB',
+          minWidth: 0,
+        }}
+      >
+        <span style={{ fontSize: 13, fontWeight: 700, fontFamily: 'Syne, sans-serif', color: 'var(--navy)' }}>Documenten</span>
+        {documents.length > 0 && (
+          <span style={{ fontSize: 12, color: 'var(--text-secondary)' }}>
+            {documents.length} document{documents.length !== 1 ? 'en' : ''}
+          </span>
+        )}
+        {documents.some((d) => d.analysisStatus !== 'done') && documents.length > 0 && (
+          <Button size="sm" variant="secondary" onClick={analyzeAll} style={{ marginLeft: 'auto' }}>
+            Analyseer alle
+          </Button>
+        )}
+      </div>
+
+      <div style={{ display: 'flex', gap: 20, flex: 1, minHeight: 0 }}>
       {/* Left: Document list */}
-      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 16 }}>
+      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 16, minWidth: 0 }}>
         {/* Upload zone */}
         <div
           onDragOver={(e) => { e.preventDefault(); setDragOver(true) }}
@@ -165,17 +193,6 @@ export default function DocumentsTab({ tender, documents, onDocumentsChange, use
             onChange={(e) => handleFileUpload(e.target.files)}
           />
         </div>
-
-        {documents.length > 0 && (
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <span style={{ fontSize: 12, color: 'var(--text-secondary)' }}>{documents.length} document{documents.length !== 1 ? 'en' : ''}</span>
-            {documents.some((d) => d.analysisStatus !== 'done') && (
-              <Button size="sm" variant="secondary" onClick={analyzeAll}>
-                Analyseer alle
-              </Button>
-            )}
-          </div>
-        )}
 
         {/* Document groups */}
         {Object.entries(groupedDocs).map(([type, docs]) => (
@@ -324,6 +341,7 @@ export default function DocumentsTab({ tender, documents, onDocumentsChange, use
           </div>
         </div>
       )}
+      </div>
     </div>
   )
 }

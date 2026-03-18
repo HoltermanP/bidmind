@@ -69,7 +69,7 @@ export default function NewTenderPage() {
   }
 
   return (
-    <div style={{ padding: '32px 32px 48px', maxWidth: 700 }}>
+    <div style={{ padding: '16px 32px 48px', maxWidth: 700 }}>
       <div style={{ marginBottom: 24 }}>
         <button
           onClick={() => router.back()}
