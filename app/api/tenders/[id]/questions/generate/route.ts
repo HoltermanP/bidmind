@@ -5,6 +5,7 @@ import { tenderQuestions, tenderDocuments, tenders } from '@/lib/db/schema'
 import { eq } from 'drizzle-orm'
 import { QUESTION_GENERATION_SYSTEM, QUESTION_GENERATION_USER } from '@/lib/ai/prompts'
 import { runCompletion, isAgentAvailable } from '@/lib/ai/run'
+import { getCompanyContext } from '@/lib/company/context'
 
 export async function POST(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
@@ -46,6 +47,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       .join('\n\n---\n\n')
 
     const context = summaries || `Tender: ${tender?.title}\nAanbesteder: ${tender?.contractingAuthority}\nProcedure: ${tender?.procedureType}`
+    const companyContext = await getCompanyContext()
 
     let generatedQuestions: any[] = []
 
@@ -53,7 +55,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       const content = await runCompletion(
         'question_generation',
         QUESTION_GENERATION_SYSTEM,
-        QUESTION_GENERATION_USER(context),
+        QUESTION_GENERATION_USER(context, companyContext || undefined),
         { jsonMode: true }
       )
       const parsed = JSON.parse(content || '{"questions":[]}')

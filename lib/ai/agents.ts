@@ -33,7 +33,7 @@ export const AGENT_CONFIG: Record<AgentId, AgentConfig> = {
   section_writing: {
     platform: 'anthropic',
     model: 'claude-sonnet-4-20250514',
-    maxTokens: 4000,
+    maxTokens: 16384, // Ruim genoeg voor uitgebreide secties (plan van aanpak, etc.); voorkomt afkappen
   },
   question_generation: {
     platform: 'openai',

@@ -1,5 +1,7 @@
 'use client'
 
+import Link from 'next/link'
+
 export default function InstellingenPage() {
   return (
     <div style={{ padding: '16px 32px 48px', maxWidth: 700 }}>
@@ -13,30 +15,22 @@ export default function InstellingenPage() {
       </div>
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
-        {/* Company settings */}
+        {/* Bedrijfsinformatie link */}
         <div style={{ background: 'white', border: '1px solid var(--border)', borderRadius: 4, padding: 24 }}>
-          <h3 style={{ fontSize: 14, fontFamily: 'Syne, sans-serif', fontWeight: 700, color: 'var(--navy)', marginBottom: 18 }}>
+          <h3 style={{ fontSize: 14, fontFamily: 'Syne, sans-serif', fontWeight: 700, color: 'var(--navy)', marginBottom: 8 }}>
             Bedrijfsinformatie
           </h3>
-          <div style={{ display: 'grid', gap: 14 }}>
-            {[
-              { label: 'Bedrijfsnaam', placeholder: 'Infraco B.V.' },
-              { label: 'KvK-nummer', placeholder: '12345678' },
-              { label: 'Inschrijfnummer TenderNed', placeholder: 'TN-...' },
-              { label: 'Standaard tendermanager', placeholder: 'Selecteer gebruiker' },
-            ].map(({ label, placeholder }) => (
-              <div key={label}>
-                <label style={{ display: 'block', fontSize: 12, fontWeight: 600, color: 'var(--text-primary)', marginBottom: 4 }}>{label}</label>
-                <input
-                  placeholder={placeholder}
-                  style={{
-                    width: '100%', padding: '7px 10px', border: '1px solid var(--border)', borderRadius: 4,
-                    fontSize: 13, fontFamily: 'IBM Plex Sans, sans-serif', color: 'var(--text-primary)', outline: 'none',
-                  }}
-                />
-              </div>
-            ))}
-          </div>
+          <p style={{ fontSize: 13, color: 'var(--text-secondary)', marginBottom: 14 }}>
+            Vul bedrijfsgegevens, visiedocumenten, jaarplannen en vrije tekstvelden in. De AI gebruikt dit voor analyse en maatwerk aanbiedingen.
+          </p>
+          <Link
+            href="/bedrijfsinformatie"
+            style={{
+              fontSize: 13, fontWeight: 600, color: 'var(--amber)', textDecoration: 'none',
+            }}
+          >
+            Naar Bedrijfsinformatie →
+          </Link>
         </div>
 
         {/* Notifications */}

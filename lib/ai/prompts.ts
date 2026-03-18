@@ -1,7 +1,7 @@
 export const DOCUMENT_ANALYSIS_SYSTEM = `Je bent een expert tender-analist voor infrastructuuraannemers in Nederland. Analyseer dit aanbestedingsdocument en extraheer gestructureerde informatie. Reageer altijd in JSON formaat.`
 
-export const DOCUMENT_ANALYSIS_USER = (documentText: string) => `
-Analyseer het volgende aanbestedingsdocument en retourneer een JSON object met deze structuur:
+export const DOCUMENT_ANALYSIS_USER = (documentText: string, companyContext?: string) => `
+${companyContext ? `${companyContext}\n\n` : ''}Analyseer het volgende aanbestedingsdocument en retourneer een JSON object met deze structuur:
 {
   "summary": "string - beknopte samenvatting in 2-3 zinnen",
   "key_requirements": ["string array van kritische eisen"],
@@ -17,8 +17,8 @@ ${documentText}
 
 export const QUESTION_GENERATION_SYSTEM = `Je bent een senior tendermanager bij een infrastructuuraannemer in Nederland. Op basis van de aanbestedingsdocumenten genereer je een uitgebreide lijst van vragen voor de Nota van Inlichtingen (NVI) fase. Vragen moeten specifiek, strategisch en gericht zijn op het verduidelijken van ambiguïteiten die de inschrijving kunnen beïnvloeden.`
 
-export const QUESTION_GENERATION_USER = (summaries: string) => `
-Op basis van de volgende samenvattingen van aanbestedingsdocumenten, genereer NVI vragen.
+export const QUESTION_GENERATION_USER = (summaries: string, companyContext?: string) => `
+${companyContext ? `${companyContext}\n\n` : ''}Op basis van de volgende samenvattingen van aanbestedingsdocumenten, genereer NVI vragen.
 
 Retourneer een JSON array met objecten:
 [{
@@ -41,9 +41,10 @@ export const SECTION_WRITING_USER = (
   tenderTitle: string,
   authority: string,
   requirements: string[],
-  documentContext: string
+  documentContext: string,
+  companyContext?: string
 ) => `
-Schrijf een ZEER UITGEBREID document voor de sectie "${sectionType}" van de aanbieding voor onderstaande aanbesteding. Baseer de inhoud expliciet op de beschikbare aanbestedingsdocumenten (samenvattingen, eisen, gunningscriteria en risico's) hieronder.
+${companyContext ? `${companyContext}\n\n` : ''}Schrijf een ZEER UITGEBREID document voor de sectie "${sectionType}" van de aanbieding voor onderstaande aanbesteding. Baseer de inhoud expliciet op de beschikbare aanbestedingsdocumenten (samenvattingen, eisen, gunningscriteria en risico's) én op de bedrijfscontext hierboven, zodat de aanbieding maatwerk is voor dit bedrijf.
 
 --- Aanbesteding ---
 Titel: ${tenderTitle}
@@ -62,5 +63,6 @@ Schrijf een volledig, goed gestructureerd document in Markdown:
 - Gebruik bullets (-) of genummerde lijsten alleen wanneer een echte opsomming nodig is (bijv. een vast aantal concrete stappen of deliverables). Geen lange bullet-lijsten waar paragrafen passender zijn.
 - Geef concrete voorbeelden, maatregelen en toelichtingen die aansluiten op de eisen en criteria hierboven, bij voorkeur in lopende tekst.
 - Wees uitvoerig en beschrijvend: meerdere pagina's inhoud is gewenst (richtlijn: minimaal 1000–2000 woorden, meer mag voor complexe secties). Hoe uitgebreider en toelichtender, hoe beter.
+- Lever het document altijd volledig af: sluit af met een duidelijke afronding (slot of conclusie). Geen afkappen halverwege; schrijf door tot alle onderdelen behandeld zijn.
 - Geen placeholdertekst; alleen bruikbare, inhoudelijke en beschrijvende tekst.
 `

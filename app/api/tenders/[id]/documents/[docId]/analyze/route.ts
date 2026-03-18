@@ -5,6 +5,7 @@ import { tenders, tenderDocuments, tenderActivities } from '@/lib/db/schema'
 import { eq } from 'drizzle-orm'
 import { DOCUMENT_ANALYSIS_SYSTEM, DOCUMENT_ANALYSIS_USER } from '@/lib/ai/prompts'
 import { runCompletion, isAgentAvailable } from '@/lib/ai/run'
+import { getCompanyContext } from '@/lib/company/context'
 import { fetchDocumentContent } from '@/lib/tenderned/client'
 import { extractTextFromBuffer } from '@/lib/documents/extract-text'
 
@@ -60,11 +61,13 @@ export async function POST(
     let analysisJson: any = null
     let summary = ''
 
+    const companyContext = await getCompanyContext()
+
     try {
       const content = await runCompletion(
         'document_analysis',
         DOCUMENT_ANALYSIS_SYSTEM,
-        DOCUMENT_ANALYSIS_USER(documentContext),
+        DOCUMENT_ANALYSIS_USER(documentContext, companyContext || undefined),
         { jsonMode: true }
       )
       analysisJson = JSON.parse(content || '{}')

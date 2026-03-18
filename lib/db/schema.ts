@@ -10,6 +10,7 @@ export const sectionTypeEnum = pgEnum('section_type', ['plan_van_aanpak', 'kwali
 export const sectionStatusEnum = pgEnum('section_status', ['empty', 'draft', 'in_review', 'approved'])
 export const noteTypeEnum = pgEnum('note_type', ['internal', 'decision', 'risk', 'milestone'])
 export const userRoleEnum = pgEnum('user_role', ['admin', 'tender_manager', 'team_member'])
+export const companyDocumentTypeEnum = pgEnum('company_document_type', ['vision', 'year_plan', 'other'])
 
 export const users = pgTable('users', {
   id: text('id').primaryKey(),
@@ -119,4 +120,30 @@ export const tenderNotes = pgTable('tender_notes', {
   content: text('content'),
   noteType: noteTypeEnum('note_type').default('internal'),
   createdAt: timestamp('created_at').defaultNow(),
+})
+
+// Eén rij: bedrijfsgegevens voor AI-analyse en maatwerk aanbiedingen
+export const companySettings = pgTable('company_settings', {
+  id: text('id').primaryKey().default('default'),
+  companyName: text('company_name'),
+  kvkNumber: text('kvk_number'),
+  tendernedNumber: text('tenderned_number'),
+  defaultTenderManagerId: text('default_tender_manager_id'),
+  websiteUrl: text('website_url'),
+  description: text('description'),
+  visionText: text('vision_text'),
+  annualPlanText: text('annual_plan_text'),
+  strengthsText: text('strengths_text'),
+  referencesText: text('references_text'),
+  updatedAt: timestamp('updated_at').defaultNow(),
+})
+
+export const companyDocuments = pgTable('company_documents', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  documentType: companyDocumentTypeEnum('document_type').notNull(),
+  fileName: text('file_name').notNull(),
+  fileUrl: text('file_url'),
+  fileSize: integer('file_size'),
+  extractedText: text('extracted_text'),
+  uploadedAt: timestamp('uploaded_at').defaultNow(),
 })

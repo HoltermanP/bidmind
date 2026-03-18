@@ -5,6 +5,7 @@ import { tenderSections, tenders, tenderDocuments } from '@/lib/db/schema'
 import { eq } from 'drizzle-orm'
 import { SECTION_WRITING_SYSTEM, SECTION_WRITING_USER } from '@/lib/ai/prompts'
 import { runCompletionStream, isAgentAvailable } from '@/lib/ai/run'
+import { getCompanyContext } from '@/lib/company/context'
 
 const SECTION_TYPE_LABELS: Record<string, string> = {
   plan_van_aanpak: 'Plan van Aanpak',
@@ -63,6 +64,7 @@ export async function POST(
     : 'Geen geanalyseerde documenten beschikbaar. Schrijf een professionele, inhoudelijk sterke sectie passend bij het sectietype en de tender.'
 
   const sectionTypeLabel = SECTION_TYPE_LABELS[section?.sectionType || 'eigen_sectie'] || (body.sectionType || 'sectie')
+  const companyContext = await getCompanyContext()
 
   const userContent = SECTION_WRITING_USER(
     sectionTypeLabel,
@@ -70,6 +72,7 @@ export async function POST(
     tender?.contractingAuthority || 'Onbekende aanbesteder',
     requirements.length ? requirements : ['Conform de eisen van de aanbestedende dienst.'],
     documentContext,
+    companyContext || undefined,
   )
 
   const encoder = new TextEncoder()
