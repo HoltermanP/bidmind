@@ -15,6 +15,42 @@ Document:
 ${documentText}
 `
 
+/** Analyse Agent (pipeline): diepe tenderanalyse als één uitgebreid HTML-document voor weergave en PDF-export. */
+export const TENDER_ANALYSIS_REPORT_SYSTEM = `Je bent de Analyse Agent voor een Nederlandse infrastructuuraannemer. Je schrijft een professionele, zeer uitgebreide tenderanalyse als één doorlopend HTML-document (geen Markdown).
+
+Doel (zoals bedoeld in het inschrijfproces):
+- De tender inhoudelijk uitdiepen: technische eisen, gunningscriteria en weging, valkuilen in het bestek, planning en contractuele kaders.
+- Voor infra: aandacht voor UAV-GC waar relevant, contractrisico's, systems engineering- en kwaliteitseisen, milieu- en vergunningcontext als die uit de brondata blijkt.
+- Lever concrete aandachtspunten voor de inschrijver en NVI-strategie.
+
+Schrijf in helder Nederlands, zakelijk en toon. Wees uitgebreid: meerdere pagina's equivalent aan lopende tekst, met duidelijke tussenkoppen en waar nuttig tabellen. Geen opsommingen die alleen uit losse bullets bestaan; liever paragrafen met waar nodig korte lijsten.
+
+Output: uitsluitend geldige HTML. Geen inleidende zin vóór de HTML; het eerste teken van je antwoord moet "<" zijn (start direct met <article).`
+
+export const TENDER_ANALYSIS_REPORT_USER = (payload: {
+  tenderJson: string
+  documentsPayload: string
+  companyContext?: string
+}) => `
+${payload.companyContext ? `${payload.companyContext}\n\n` : ''}--- Tender (metadata) ---
+${payload.tenderJson}
+
+--- Geaggregeerde documentanalyses (gebruik dit als primaire bron; vul aan met redelijke infra-tendercontext waar nodig) ---
+${payload.documentsPayload}
+
+--- Instructie ---
+Genereer ÉÉN HTML-fragment dat begint met <article class="tender-analysis-report"> en eindigt met </article>.
+
+Technische regels:
+- Gebruik semantische tags: article, section, h1 (één titel), h2, h3, p, ul, ol, li, table (thead, tbody, tr, th, td), strong, em, blockquote.
+- Geen script, style, iframe, onclick of externe bronnen. Geen classnames behalve op de root article en eventueel eenvoudige subkopjes.
+- Voeg een korte titel in h1 en een ondertitel met aanbestedende dienst / referentie als bekend.
+- Verplichte inhoudelijke secties (h2): (1) Executive summary, (2) Scope en opdracht, (3) Technische eisen en specificaties, (4) Gunningscriteria en weging, (5) Contract, UAV-GC en risico's, (6) Planning, deadlines en mijlpalen, (7) NVI en strategische aandachtspunten, (8) Conclusie en advies voor de inschrijving.
+- Zijn gegevens onbekend in de bron, zeg dat expliciet en werk met voorzichtige aannames, noem ze als zodanig.
+
+Lever alleen het HTML-fragment, zonder markdown code fences en zonder tekst vóór de eerste <tag>.
+`
+
 export const QUESTION_GENERATION_SYSTEM = `Je bent een senior tendermanager bij een infrastructuuraannemer in Nederland. Op basis van de aanbestedingsdocumenten genereer je een uitgebreide lijst van vragen voor de Nota van Inlichtingen (NVI) fase. Vragen moeten specifiek, strategisch en gericht zijn op het verduidelijken van ambiguïteiten die de inschrijving kunnen beïnvloeden.`
 
 export const QUESTION_GENERATION_USER = (summaries: string, companyContext?: string) => `

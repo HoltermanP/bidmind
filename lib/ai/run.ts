@@ -1,10 +1,61 @@
+import type { Message } from '@anthropic-ai/sdk/resources/messages/messages'
 import { openai, anthropic, isProviderAvailable } from '@/lib/ai/client'
-import { getAgentConfig, type AgentId } from '@/lib/ai/agents'
+import { getAgentConfig, type AgentConfig, type AgentId } from '@/lib/ai/agents'
 
 export interface RunCompletionOptions {
   maxTokens?: number
   /** Vraag JSON-object in de response (OpenAI: response_format; Anthropic: in system prompt) */
   jsonMode?: boolean
+}
+
+/**
+ * Alle tekst uit een Anthropic-assistantbericht (meerdere text-blokken kunnen voorkomen,
+ * o.a. na thinking-blokken; alleen het eerste blok lezen gaf lege output).
+ */
+export function collectAnthropicTextFromMessage(response: Message): string {
+  return response.content
+    .filter((block) => block.type === 'text')
+    .map((block) => (block.type === 'text' ? block.text : ''))
+    .join('')
+}
+
+async function anthropicMessagesCreate(
+  config: AgentConfig,
+  system: string,
+  user: string,
+  options: RunCompletionOptions
+) {
+  if (!anthropic) throw new Error('Anthropic not configured')
+  const maxTokens = options.maxTokens ?? config.maxTokens ?? 2000
+  const systemWithJson = options.jsonMode
+    ? `${system}\n\nReageer uitsluitend met een geldig JSON-object, geen andere tekst.`
+    : system
+  return anthropic.messages.create({
+    model: config.model,
+    max_tokens: maxTokens,
+    system: systemWithJson,
+    messages: [{ role: 'user', content: user }],
+  })
+}
+
+/**
+ * Anthropic-completion met stop_reason (o.a. max_tokens-detectie voor lange HTML-rapporten).
+ */
+export async function runAnthropicCompletionDetailed(
+  agentId: AgentId,
+  system: string,
+  user: string,
+  options: RunCompletionOptions = {}
+): Promise<{ text: string; stopReason: string | null }> {
+  const config = getAgentConfig(agentId)
+  if (config.platform !== 'anthropic') {
+    throw new Error('Deze agent gebruikt geen Anthropic')
+  }
+  const response = await anthropicMessagesCreate(config, system, user, options)
+  return {
+    text: collectAnthropicTextFromMessage(response),
+    stopReason: response.stop_reason,
+  }
 }
 
 /**
@@ -34,19 +85,12 @@ export async function runCompletion(
     return response.choices[0]?.message?.content ?? ''
   }
 
-  // Anthropic
-  if (!anthropic) throw new Error('Anthropic not configured')
-  const systemWithJson = options.jsonMode
-    ? `${system}\n\nReageer uitsluitend met een geldig JSON-object, geen andere tekst.`
-    : system
-  const response = await anthropic.messages.create({
-    model: config.model,
-    max_tokens: maxTokens,
-    system: systemWithJson,
-    messages: [{ role: 'user', content: user }],
-  })
-  const textBlock = response.content.find((b) => b.type === 'text')
-  return textBlock && 'text' in textBlock ? textBlock.text : ''
+  if (config.platform === 'anthropic') {
+    const response = await anthropicMessagesCreate(config, system, user, options)
+    return collectAnthropicTextFromMessage(response)
+  }
+
+  throw new Error('Unsupported AI platform')
 }
 
 /**

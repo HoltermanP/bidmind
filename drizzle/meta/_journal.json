@@ -15,6 +15,13 @@
       "when": 1773867373049,
       "tag": "0001_hard_mulholland_black",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1774126118263,
+      "tag": "0002_bored_cammi",
+      "breakpoints": true
     }
   ]
 }

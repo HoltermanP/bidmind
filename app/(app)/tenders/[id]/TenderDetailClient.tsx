@@ -10,6 +10,7 @@ import Avatar from '@/components/ui/Avatar'
 import { useToast } from '@/components/ui/Toast'
 import { formatDate, formatDateTime, formatCurrency, getDaysUntil, STATUS_LABELS } from '@/lib/utils/format'
 import OverviewTab from './tabs/OverviewTab'
+import AnalysisTab from './tabs/AnalysisTab'
 import DocumentsTab from './tabs/DocumentsTab'
 import QuestionsTab from './tabs/QuestionsTab'
 import SectionsTab from './tabs/SectionsTab'
@@ -29,6 +30,7 @@ interface Props {
 const TABS = [
   { id: 'overview', label: 'Overzicht' },
   { id: 'documents', label: 'Documenten' },
+  { id: 'analysis', label: 'Tenderanalyse' },
   { id: 'questions', label: 'NVI Vragen' },
   { id: 'sections', label: 'Aanbieding' },
   { id: 'timeline', label: 'Tijdlijn' },
@@ -302,6 +304,13 @@ export default function TenderDetailClient({ tender: initialTender, documents: i
             >
               {activeTab === 'overview' && (
                 <OverviewTab tender={tender} onUpdate={patchTender} allUsers={allUsers} userMap={userMap} />
+              )}
+              {activeTab === 'analysis' && (
+                <AnalysisTab
+                  tender={tender}
+                  documents={documents}
+                  onTenderUpdate={(updates) => setTender((prev: any) => ({ ...prev, ...updates }))}
+                />
               )}
               {activeTab === 'documents' && (
                 <DocumentsTab tender={tender} documents={documents} onDocumentsChange={setDocuments} userMap={userMap} />

@@ -40,6 +40,10 @@ export const tenders = pgTable('tenders', {
   tendernetUrl: text('tendernet_url'),
   tendernedPublicatieId: text('tenderned_publicatie_id'),
   goNoGoReasoning: text('go_no_go_reasoning'),
+  /** Uitgebreide tenderanalyse (Analyse Agent): semantische HTML, veilig gesanitized */
+  analysisReportHtml: text('analysis_report_html'),
+  analysisReportStatus: analysisStatusEnum('analysis_report_status').default('pending'),
+  analysisReportGeneratedAt: timestamp('analysis_report_generated_at'),
   notesCount: integer('notes_count').default(0),
   createdAt: timestamp('created_at').defaultNow(),
   updatedAt: timestamp('updated_at').defaultNow(),
