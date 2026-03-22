@@ -20,6 +20,9 @@
 # production
 /build
 
+# lokaal geüploade tenderdocumenten (ontwikkelomgeving)
+/public/uploads/
+
 # misc
 .DS_Store
 *.pem

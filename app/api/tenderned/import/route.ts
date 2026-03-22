@@ -9,6 +9,7 @@ import {
   parseContentIdFromHref,
 } from '@/lib/tenderned/client'
 import type { TenderNedDocument } from '@/lib/tenderned/types'
+import { resolveProjectTitleFromTenderNed } from '@/lib/tenders/resolve-project-title'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -51,8 +52,13 @@ export async function POST(request: NextRequest) {
       ? detail.cpvCodes.map((c) => c.code)
       : null
 
+    const resolvedTitle = resolveProjectTitleFromTenderNed(
+      detail.aanbestedingNaam ?? '',
+      detail.opdrachtBeschrijving
+    )
+
     const [tender] = await db.insert(tenders).values({
-      title: detail.aanbestedingNaam ?? 'Onbekende aanbesteding',
+      title: resolvedTitle,
       referenceNumber: detail.referentieNummer ?? (detail.kenmerk != null ? String(detail.kenmerk) : null),
       contractingAuthority: detail.opdrachtgeverNaam ?? null,
       publicationDate,

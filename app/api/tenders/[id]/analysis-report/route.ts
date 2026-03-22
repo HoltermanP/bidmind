@@ -8,6 +8,7 @@ import { runAnthropicCompletionDetailed, isAgentAvailable } from '@/lib/ai/run'
 import { getCompanyContext } from '@/lib/company/context'
 import { sanitizeAndWrapTenderAnalysisHtml } from '@/lib/analysis/sanitize-report-html'
 import { parseTenderAnalysisReportResponse } from '@/lib/analysis/parse-tender-analysis-report'
+import { tenderMetadataJson } from '@/lib/tenders/tender-metadata-json'
 
 export const maxDuration = 120
 
@@ -17,27 +18,6 @@ function visibleTextLength(html: string): number {
     .replace(/&nbsp;/gi, ' ')
     .replace(/\s+/g, ' ')
     .trim().length
-}
-
-function tenderToJson(t: typeof tenders.$inferSelect) {
-  return JSON.stringify(
-    {
-      title: t.title,
-      referenceNumber: t.referenceNumber,
-      contractingAuthority: t.contractingAuthority,
-      procedureType: t.procedureType,
-      estimatedValue: t.estimatedValue,
-      cpvCodes: t.cpvCodes,
-      publicationDate: t.publicationDate?.toISOString?.() ?? t.publicationDate,
-      deadlineQuestions: t.deadlineQuestions?.toISOString?.() ?? t.deadlineQuestions,
-      deadlineSubmission: t.deadlineSubmission?.toISOString?.() ?? t.deadlineSubmission,
-      tendernetUrl: t.tendernetUrl,
-      goNoGo: t.goNoGo,
-      goNoGoReasoning: t.goNoGoReasoning,
-    },
-    null,
-    2
-  )
 }
 
 export async function POST(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
@@ -98,7 +78,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       'tender_analysis_report',
       TENDER_ANALYSIS_REPORT_SYSTEM,
       TENDER_ANALYSIS_REPORT_USER({
-        tenderJson: tenderToJson(tender),
+        tenderJson: tenderMetadataJson(tender),
         documentsPayload,
         companyContext: companyContext || undefined,
       }),
@@ -191,5 +171,49 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
         .where(eq(tenders.id, id))
     }
     return NextResponse.json({ error: 'Genereren van tenderanalyse mislukt' }, { status: 500 })
+  }
+}
+
+export async function DELETE(_request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  try {
+    const { userId } = await auth()
+    if (!userId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    if (!db) return NextResponse.json({ error: 'Database not configured' }, { status: 503 })
+
+    const { id } = await params
+    const [tender] = await db.select().from(tenders).where(eq(tenders.id, id))
+    if (!tender) return NextResponse.json({ error: 'Tender niet gevonden' }, { status: 404 })
+    if (tender.analysisReportStatus === 'processing') {
+      return NextResponse.json(
+        { error: 'Even wachten: de tenderanalyse wordt nog gegenereerd.' },
+        { status: 409 }
+      )
+    }
+
+    const now = new Date()
+    const [updated] = await db
+      .update(tenders)
+      .set({
+        analysisReportHtml: null,
+        analysisReportStatus: 'pending',
+        analysisReportGeneratedAt: null,
+        winProbabilityEstimated: null,
+        updatedAt: now,
+      })
+      .where(eq(tenders.id, id))
+      .returning()
+
+    await db.insert(tenderActivities).values({
+      tenderId: id,
+      userId,
+      activityType: 'tender_analysis_report',
+      description: 'Tenderanalyse (HTML-rapport) verwijderd',
+      metadata: { action: 'deleted' },
+    })
+
+    return NextResponse.json(updated)
+  } catch (error) {
+    console.error('DELETE /api/tenders/[id]/analysis-report error:', error)
+    return NextResponse.json({ error: 'Verwijderen van tenderanalyse mislukt' }, { status: 500 })
   }
 }

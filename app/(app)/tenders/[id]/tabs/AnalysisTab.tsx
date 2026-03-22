@@ -32,6 +32,7 @@ export default function AnalysisTab({ tender, documents, onTenderUpdate }: Props
   const printRef = useRef<HTMLDivElement>(null)
   const [pdfLoading, setPdfLoading] = useState(false)
   const [generating, setGenerating] = useState(false)
+  const [deleting, setDeleting] = useState(false)
 
   const status = tender.analysisReportStatus as string | undefined
   const html = tender.analysisReportHtml as string | undefined
@@ -56,6 +57,31 @@ export default function AnalysisTab({ tender, documents, onTenderUpdate }: Props
       toast('Genereren mislukt', 'error')
     } finally {
       setGenerating(false)
+    }
+  }
+
+  const handleDelete = async () => {
+    if (
+      !confirm(
+        'Weet je zeker dat je het tenderanalyse-rapport wilt verwijderen? Je kunt het later opnieuw genereren op basis van de documentanalyses.'
+      )
+    ) {
+      return
+    }
+    setDeleting(true)
+    try {
+      const res = await fetch(`/api/tenders/${tender.id}/analysis-report`, { method: 'DELETE' })
+      const body = await res.json().catch(() => ({}))
+      if (!res.ok) {
+        toast(body.error || 'Verwijderen mislukt', 'error')
+        return
+      }
+      onTenderUpdate(body)
+      toast('Tenderanalyse verwijderd', 'success')
+    } catch {
+      toast('Verwijderen mislukt', 'error')
+    } finally {
+      setDeleting(false)
     }
   }
 
@@ -88,7 +114,9 @@ export default function AnalysisTab({ tender, documents, onTenderUpdate }: Props
     }
   }
 
-  const busy = generating || status === 'processing'
+  const busy = generating || status === 'processing' || deleting
+  const canDeleteReport =
+    !busy && (Boolean(html) || status === 'failed')
 
   /** Zelfde voorwaarde als POST /analysis-report: minstens één document met status done én analysisJson. */
   const hasAnalyzedDocuments = documents.some((d) => d.analysisStatus === 'done' && Boolean(d.analysisJson))
@@ -125,6 +153,11 @@ export default function AnalysisTab({ tender, documents, onTenderUpdate }: Props
         {html && (
           <Button size="sm" onClick={handleDownloadPdf} disabled={pdfLoading || busy}>
             {pdfLoading ? 'PDF…' : 'Download PDF'}
+          </Button>
+        )}
+        {canDeleteReport && (
+          <Button size="sm" variant="secondary" onClick={handleDelete} disabled={busy}>
+            {deleting ? 'Verwijderen…' : 'Rapport verwijderen'}
           </Button>
         )}
       </div>

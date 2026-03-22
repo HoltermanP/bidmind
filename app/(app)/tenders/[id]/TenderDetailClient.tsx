@@ -1,9 +1,8 @@
 'use client'
 
-import { useState, useRef, useEffect, useLayoutEffect } from 'react'
+import { useState, useRef, useEffect, useLayoutEffect, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
-import { motion, AnimatePresence } from 'framer-motion'
 import Badge from '@/components/ui/Badge'
 import Button from '@/components/ui/Button'
 import Avatar from '@/components/ui/Avatar'
@@ -11,6 +10,7 @@ import { useToast } from '@/components/ui/Toast'
 import { formatDate, formatDateTime, getDaysUntil } from '@/lib/utils/format'
 import TenderPipelineStrip from '@/components/tenders/TenderPipelineStrip'
 import { getTabForPipelineStatus, TENDER_TAB_PIPELINE_HINT, type TenderDetailTabId } from '@/lib/tender/pipeline'
+import { displayTenderTitle } from '@/lib/tenders/resolve-project-title'
 import OverviewTab from './tabs/OverviewTab'
 import AnalysisTab from './tabs/AnalysisTab'
 import DocumentsTab from './tabs/DocumentsTab'
@@ -60,15 +60,15 @@ export default function TenderDetailClient({ tender: initialTender, documents: i
     }
   }, [activeTab])
 
-  const updateTabIndicator = () => {
+  const updateTabIndicator = useCallback(() => {
     const el = tabRefs.current[activeTab]
     if (el) setTabIndicator({ left: el.offsetLeft, width: el.offsetWidth })
-  }
+  }, [activeTab])
 
   useEffect(() => {
     window.addEventListener('resize', updateTabIndicator)
     return () => window.removeEventListener('resize', updateTabIndicator)
-  }, [activeTab])
+  }, [updateTabIndicator])
 
   const patchTender = async (updates: Record<string, any>) => {
     const prevTab = activeTab
@@ -98,6 +98,15 @@ export default function TenderDetailClient({ tender: initialTender, documents: i
   const teamMembers = (tender.teamMemberIds || []).map((id: string) => userMap[id]).filter(Boolean)
 
   const approvedSections = sections.filter((s: any) => s.status === 'approved').length
+
+  /** Alleen risico's uit documenten met geslaagde analyse (geen placeholder/mockdata). */
+  const riskIndicators = Array.from(
+    new Set(
+      documents.flatMap((d: any) =>
+        d.analysisStatus === 'done' && Array.isArray(d.analysisJson?.risks) ? d.analysisJson.risks : []
+      )
+    )
+  ).slice(0, 6)
 
   return (
     <div
@@ -142,7 +151,7 @@ export default function TenderDetailClient({ tender: initialTender, documents: i
                 wordBreak: 'break-word',
                 maxWidth: '100%',
               }}>
-                {tender.title}
+                {displayTenderTitle(tender.title)}
               </h1>
               {tender.referenceNumber && (
                 <span style={{ fontFamily: 'IBM Plex Mono, monospace', fontSize: 11, color: 'var(--muted)', background: '#F3F4F6', padding: '2px 6px', borderRadius: 3 }}>
@@ -308,15 +317,7 @@ export default function TenderDetailClient({ tender: initialTender, documents: i
       <div className="tender-detail-layout" style={{ display: 'flex', flex: 1, overflow: 'hidden', minHeight: 0 }}>
         {/* Left: Tab content – voldoende ruimte onder tab-balk */}
         <div style={{ flex: 1, minWidth: 0, overflow: 'auto', padding: '24px 32px 32px', boxSizing: 'border-box' }} className="tender-tab-scroll">
-          <AnimatePresence mode="wait">
-            <motion.div
-              key={activeTab}
-              initial={{ opacity: 0, y: 6 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0 }}
-              transition={{ duration: 0.15 }}
-              style={{ display: 'flex', flexDirection: 'column', gap: 0, minWidth: 0 }}
-            >
+          <div key={activeTab} style={{ display: 'flex', flexDirection: 'column', gap: 0, minWidth: 0 }}>
               {activeTab === 'overview' && (
                 <OverviewTab tender={tender} onUpdate={patchTender} allUsers={allUsers} userMap={userMap} />
               )}
@@ -367,7 +368,13 @@ export default function TenderDetailClient({ tender: initialTender, documents: i
                 <DocumentsTab tender={tender} documents={documents} onDocumentsChange={setDocuments} userMap={userMap} />
               )}
               {activeTab === 'questions' && (
-                <QuestionsTab tender={tender} questions={questions} onQuestionsChange={setQuestions} documents={documents} />
+                <QuestionsTab
+                  tender={tender}
+                  questions={questions}
+                  onQuestionsChange={setQuestions}
+                  documents={documents}
+                  onDocumentsChange={setDocuments}
+                />
               )}
               {activeTab === 'sections' && (
                 <SectionsTab
@@ -381,8 +388,7 @@ export default function TenderDetailClient({ tender: initialTender, documents: i
               {activeTab === 'timeline' && (
                 <TimelineTab tender={tender} activities={activities} notes={initialNotes} onActivitiesChange={setActivities} userMap={userMap} />
               )}
-            </motion.div>
-          </AnimatePresence>
+          </div>
         </div>
 
         {/* Right: Sidebar */}
@@ -433,7 +439,7 @@ export default function TenderDetailClient({ tender: initialTender, documents: i
 
           {/* Key dates */}
           <div>
-            <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--muted)', letterSpacing: '0.06em', textTransform: 'uppercase', marginBottom: 10 }}>Sleuteldatums</div>
+            <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--muted)', letterSpacing: '0.06em', textTransform: 'uppercase', marginBottom: 10 }}>Mijlpalen</div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
               {[
                 { label: 'Publicatie', date: tender.publicationDate },
@@ -468,15 +474,12 @@ export default function TenderDetailClient({ tender: initialTender, documents: i
             </div>
           </div>
 
-          {/* Risks from AI */}
-          {documents.some((d: any) => d.analysisJson?.risks?.length > 0) && (
+          {/* Risico's uit geslaagde documentanalyse voor deze tender */}
+          {riskIndicators.length > 0 && (
             <div>
               <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--muted)', letterSpacing: '0.06em', textTransform: 'uppercase', marginBottom: 10 }}>Risico-indicatoren</div>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                {documents
-                  .flatMap((d: any) => d.analysisJson?.risks || [])
-                  .slice(0, 4)
-                  .map((risk: string, i: number) => (
+                {riskIndicators.map((risk: string, i: number) => (
                     <div
                       key={i}
                       style={{

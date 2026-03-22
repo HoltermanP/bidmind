@@ -6,6 +6,7 @@ import Badge from '@/components/ui/Badge'
 import { useToast } from '@/components/ui/Toast'
 import { formatDateTime } from '@/lib/utils/format'
 import SectionRichTextEditor from '@/components/tenders/SectionRichTextEditor'
+import { displayTenderTitle } from '@/lib/tenders/resolve-project-title'
 
 interface Section {
   id: string
@@ -298,7 +299,7 @@ export default function SectionsTab({ tender, sections, onSectionsChange, docume
       const url = URL.createObjectURL(blob)
       const a = document.createElement('a')
       a.href = url
-      a.download = `Aanbieding_${(tender.title || 'document').replace(/[^\w\s-]/g, '').replace(/\s+/g, '_').slice(0, 60)}.docx`
+      a.download = `Aanbieding_${(displayTenderTitle(tender.title) || 'document').replace(/[^\w\s-]/g, '').replace(/\s+/g, '_').slice(0, 60)}.docx`
       a.click()
       URL.revokeObjectURL(url)
       toast('Word-document gedownload', 'success')

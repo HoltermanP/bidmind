@@ -1,15 +1,80 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { readFile } from 'fs/promises'
+import path from 'path'
 import { auth } from '@clerk/nextjs/server'
 import { db } from '@/lib/db'
 import { tenders, tenderDocuments, tenderActivities } from '@/lib/db/schema'
 import { eq } from 'drizzle-orm'
 import { DOCUMENT_ANALYSIS_SYSTEM, DOCUMENT_ANALYSIS_USER } from '@/lib/ai/prompts'
+import { parseAiJsonObject } from '@/lib/ai/parse-ai-json'
 import { runCompletion, isAgentAvailable } from '@/lib/ai/run'
 import { getCompanyContext } from '@/lib/company/context'
 import { fetchDocumentContent } from '@/lib/tenderned/client'
 import { extractTextFromBuffer } from '@/lib/documents/extract-text'
 
 export const maxDuration = 60
+export const runtime = 'nodejs'
+
+function guessMimeFromFileName(fileName: string | null): string {
+  const ext = path.extname(fileName || '').toLowerCase()
+  if (ext === '.pdf') return 'application/pdf'
+  if (ext === '.docx')
+    return 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+  if (ext === '.doc') return 'application/msword'
+  if (ext === '.xlsx')
+    return 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+  return 'application/octet-stream'
+}
+
+/** Tekst uit een handmatig geüpload document (lokaal bestand of publieke URL). */
+async function extractTextFromUploadedDoc(doc: {
+  fileName: string | null
+  fileUrl: string | null
+  tenderId: string | null
+}): Promise<string | null> {
+  const { fileUrl, fileName, tenderId } = doc
+  if (!fileUrl || !tenderId) return null
+
+  if (fileUrl.startsWith('/uploads/')) {
+    const prefix = `/uploads/tenders/${tenderId}/`
+    if (!fileUrl.startsWith(prefix)) return null
+    const rel = fileUrl.replace(/^\//, '')
+    const abs = path.join(process.cwd(), 'public', rel)
+    try {
+      const buf = await readFile(abs)
+      const mime = guessMimeFromFileName(fileName)
+      const ab = buf.buffer.slice(buf.byteOffset, buf.byteOffset + buf.byteLength)
+      const extracted = await extractTextFromBuffer(ab, mime)
+      if (extracted && extracted.trim().length > 0) {
+        return extracted.length > 120000
+          ? extracted.slice(0, 120000) + '\n\n[... document ingekort voor analyse ...]'
+          : extracted
+      }
+    } catch (e) {
+      console.warn('Geüpload bestand lezen mislukt:', e)
+    }
+    return null
+  }
+
+  if (fileUrl.startsWith('http') && !fileUrl.includes('placeholder.uploadthing.com')) {
+    try {
+      const res = await fetch(fileUrl, { signal: AbortSignal.timeout(120_000) })
+      if (!res.ok) return null
+      const ct = res.headers.get('content-type') || guessMimeFromFileName(fileName)
+      const buf = await res.arrayBuffer()
+      const extracted = await extractTextFromBuffer(buf, ct)
+      if (extracted && extracted.trim().length > 0) {
+        return extracted.length > 120000
+          ? extracted.slice(0, 120000) + '\n\n[... document ingekort voor analyse ...]'
+          : extracted
+      }
+    } catch (e) {
+      console.warn('Document-URL ophalen mislukt:', e)
+    }
+  }
+
+  return null
+}
 
 export async function POST(
   request: NextRequest,
@@ -30,6 +95,10 @@ export async function POST(
 
     const [doc] = await db.select().from(tenderDocuments).where(eq(tenderDocuments.id, docId))
     if (!doc) return NextResponse.json({ error: 'Document not found' }, { status: 404 })
+    if (doc.tenderId !== id) {
+      await db.update(tenderDocuments).set({ analysisStatus: 'pending' }).where(eq(tenderDocuments.id, docId))
+      return NextResponse.json({ error: 'Document hoort niet bij deze tender' }, { status: 400 })
+    }
 
     let documentContext: string
 
@@ -55,11 +124,17 @@ export async function POST(
         documentContext = `Document naam: ${doc.fileName}\nType: ${doc.documentType}\nAanbesteding ID: ${id}\nAnalyseer op basis van de documentnaam en het type.`
       }
     } else {
-      documentContext = `Document naam: ${doc.fileName}\nType: ${doc.documentType}\nAanbesteding ID: ${id}\nDit document is onderdeel van een Nederlandse infrastructuuraanbesteding. Genereer een realistische analyse op basis van de documentnaam en het type document.`
+      const fromUpload = await extractTextFromUploadedDoc(doc)
+      if (fromUpload) {
+        documentContext = fromUpload
+      } else {
+        documentContext = `Document naam: ${doc.fileName}\nType: ${doc.documentType}\nAanbesteding ID: ${id}\nGeen leesbare bestandsinhoud beschikbaar (upload opnieuw als PDF of DOCX, of controleer opslag). Analyseer voor zover mogelijk op basis van bestandsnaam en type.`
+      }
     }
 
     let analysisJson: any = null
-    let summary = ''
+    let summary: string | null = null
+    let analysisOk = false
 
     const companyContext = await getCompanyContext()
 
@@ -68,29 +143,29 @@ export async function POST(
         'document_analysis',
         DOCUMENT_ANALYSIS_SYSTEM,
         DOCUMENT_ANALYSIS_USER(documentContext, companyContext || undefined),
-        { jsonMode: true }
+        { jsonMode: true, maxTokens: 8192 }
       )
-      analysisJson = JSON.parse(content || '{}')
-      summary = analysisJson.summary || ''
+      analysisJson = parseAiJsonObject(content || '{}')
+      summary = typeof analysisJson.summary === 'string' ? analysisJson.summary : ''
+      analysisOk = true
     } catch (aiError) {
-      // Fallback mock analysis bij AI-fout
-      analysisJson = {
-        summary: `Analyse van ${doc.fileName}: Dit document bevat specificaties en eisen voor de aanbesteding.`,
-        key_requirements: ['Conform UAV-GC', 'VCA certificering vereist', 'Minimaal 3 referentieprojecten'],
-        award_criteria: [{ criterion: 'Prijs', weight: '40%' }, { criterion: 'Kwaliteit', weight: '60%' }],
-        risks: ['Tijdsdruk uitvoering', 'Onbekende bodemgesteldheid'],
-        important_dates: [],
-        suggested_questions: ['Wat zijn de exacte specificaties?', 'Is er ruimte voor alternatieve oplossingen?'],
-      }
-      summary = analysisJson.summary
+      console.warn('Document AI-analyse mislukt:', aiError)
     }
 
     const [updated] = await db.update(tenderDocuments)
-      .set({
-        analysisStatus: 'done',
-        analysisSummary: summary,
-        analysisJson,
-      })
+      .set(
+        analysisOk
+          ? {
+              analysisStatus: 'done',
+              analysisSummary: summary,
+              analysisJson,
+            }
+          : {
+              analysisStatus: 'failed',
+              analysisSummary: null,
+              analysisJson: null,
+            }
+      )
       .where(eq(tenderDocuments.id, docId))
       .returning()
 
@@ -98,7 +173,9 @@ export async function POST(
       tenderId: id,
       userId,
       activityType: 'document_analyzed',
-      description: `Document geanalyseerd: ${doc.fileName}`,
+      description: analysisOk
+        ? `Document geanalyseerd: ${doc.fileName}`
+        : `Documentanalyse mislukt: ${doc.fileName}`,
       metadata: { docId },
     })
 

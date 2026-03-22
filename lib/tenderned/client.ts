@@ -5,6 +5,7 @@ import type {
   TenderNedPublicatieDetail,
   TenderNedDocumentenResponse,
 } from './types'
+import { resolveProjectTitleFromTenderNed } from '@/lib/tenders/resolve-project-title'
 
 const TNS_BASE = 'https://www.tenderned.nl/papi/tenderned-rs-tns/v2'
 
@@ -94,7 +95,7 @@ export function parseContentIdFromHref(href: string): string | null {
 export function mapPublicatieToTender(p: TenderNedPublicatie): TenderNedPublicatieMapped {
   return {
     publicatieId: p.publicatieId,
-    title: p.aanbestedingNaam ?? 'Onbekende aanbesteding',
+    title: resolveProjectTitleFromTenderNed(p.aanbestedingNaam ?? '', p.opdrachtBeschrijving),
     referenceNumber: p.kenmerk != null ? String(p.kenmerk) : null,
     contractingAuthority: p.opdrachtgeverNaam ?? null,
     publicationDate: p.publicatieDatum ?? null,

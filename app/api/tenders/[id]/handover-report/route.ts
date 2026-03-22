@@ -8,6 +8,7 @@ import { runAnthropicCompletionDetailed, isAgentAvailable } from '@/lib/ai/run'
 import { getCompanyContext } from '@/lib/company/context'
 import { sanitizeAndWrapHandoverPlanHtml, sanitizeAndWrapHandoverPresentationHtml } from '@/lib/analysis/sanitize-report-html'
 import { parseHandoverReportResponse } from '@/lib/analysis/parse-handover-report'
+import { tenderMetadataJson } from '@/lib/tenders/tender-metadata-json'
 
 export const maxDuration = 120
 
@@ -27,26 +28,6 @@ function stripHtmlToPlain(html: string, maxChars: number): string {
     .trim()
   if (plain.length <= maxChars) return plain
   return plain.slice(0, maxChars) + ' […]'
-}
-
-function tenderToJson(t: typeof tenders.$inferSelect) {
-  return JSON.stringify(
-    {
-      title: t.title,
-      referenceNumber: t.referenceNumber,
-      contractingAuthority: t.contractingAuthority,
-      procedureType: t.procedureType,
-      estimatedValue: t.estimatedValue,
-      cpvCodes: t.cpvCodes,
-      publicationDate: t.publicationDate?.toISOString?.() ?? t.publicationDate,
-      deadlineQuestions: t.deadlineQuestions?.toISOString?.() ?? t.deadlineQuestions,
-      deadlineSubmission: t.deadlineSubmission?.toISOString?.() ?? t.deadlineSubmission,
-      tendernetUrl: t.tendernetUrl,
-      status: t.status,
-    },
-    null,
-    2
-  )
 }
 
 export async function POST(_request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
@@ -165,7 +146,7 @@ export async function POST(_request: NextRequest, { params }: { params: Promise<
       'handover_report',
       HANDOVER_REPORT_SYSTEM,
       HANDOVER_REPORT_USER({
-        tenderJson: tenderToJson(tender),
+        tenderJson: tenderMetadataJson(tender),
         sectionsPayload,
         criteriaAndDocumentsPayload,
         analysisReportExcerpt,

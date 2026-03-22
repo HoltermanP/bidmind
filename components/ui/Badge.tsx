@@ -10,6 +10,13 @@ interface BadgeProps {
   size?: 'sm' | 'md'
 }
 
+const PRIORITY_LABELS_NL: Record<string, string> = {
+  critical: 'Kritiek',
+  high: 'Hoog',
+  medium: 'Gemiddeld',
+  low: 'Laag',
+}
+
 const PRIORITY_COLORS: Record<string, { bg: string; text: string }> = {
   critical: { bg: '#FEE2E2', text: '#991B1B' },
   high: { bg: '#FFF7ED', text: '#C2410C' },
@@ -48,7 +55,7 @@ export default function Badge({ variant = 'custom', value = '', label, color, bg
     textColor = GO_NO_GO_COLORS[value]?.text || textColor
     bgColor = GO_NO_GO_COLORS[value]?.bg || bgColor
   } else if (variant === 'priority' && value) {
-    displayLabel = value.charAt(0).toUpperCase() + value.slice(1)
+    displayLabel = PRIORITY_LABELS_NL[value] || value.charAt(0).toUpperCase() + value.slice(1)
     textColor = PRIORITY_COLORS[value]?.text || textColor
     bgColor = PRIORITY_COLORS[value]?.bg || bgColor
   } else if (variant === 'document' && value) {

@@ -9,6 +9,7 @@ import Avatar from '@/components/ui/Avatar'
 import Button from '@/components/ui/Button'
 import { formatDate, formatCurrency, getDaysUntil } from '@/lib/utils/format'
 import { useToast } from '@/components/ui/Toast'
+import { displayTenderTitle } from '@/lib/tenders/resolve-project-title'
 
 export interface TenderNedItem {
   publicatieId: string
@@ -21,6 +22,8 @@ export interface TenderNedItem {
   typeOpdracht: string | null
   description: string | null
   tendernetUrl: string | null
+  /** Optioneel; wordt client-side geladen per pagina via /api/tenderned/document-counts */
+  documentCount?: number | null
 }
 
 interface Tender {
@@ -87,6 +90,8 @@ export default function TendersClient({ initialTenders, userMap, allUsers, initi
   const [tenderNedSortDir, setTenderNedSortDir] = useState<'asc' | 'desc'>('asc')
   const [tenderNedViewPage, setTenderNedViewPage] = useState(0)
   const TENDER_NED_PAGE_SIZE = 20
+  const [tenderNedDocCounts, setTenderNedDocCounts] = useState<Record<string, number | null>>({})
+  const [tenderNedDocCountsLoading, setTenderNedDocCountsLoading] = useState(false)
   const [deletingId, setDeletingId] = useState<string | null>(null)
   const [isMobile, setIsMobile] = useState(false)
   const router = useRouter()
@@ -120,6 +125,7 @@ export default function TendersClient({ initialTenders, userMap, allUsers, initi
   }, [router, toast])
 
   const loadTenderNed = useCallback(async () => {
+    setTenderNedDocCounts({})
     setTenderNedLoading(true)
     try {
       const res = await fetch('/api/tenderned/publicaties?all=true')
@@ -216,6 +222,58 @@ export default function TendersClient({ initialTenders, userMap, allUsers, initi
     [tenderNedFilteredAndSorted, tenderNedCurrentPage]
   )
 
+  const tenderNedPageIdsKey = useMemo(
+    () => tenderNedPageItems.map((i) => i.publicatieId).join(','),
+    [tenderNedPageItems]
+  )
+
+  useEffect(() => {
+    if (!showTenderNedPanel || tenderNedPageIdsKey.length === 0) return
+    const ids = tenderNedPageIdsKey.split(',')
+    const ac = new AbortController()
+    setTenderNedDocCountsLoading(true)
+    ;(async () => {
+      try {
+        const res = await fetch('/api/tenderned/document-counts', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ publicatieIds: ids }),
+          signal: ac.signal,
+        })
+        if (!res.ok) {
+          const body = await res.json().catch(() => ({}))
+          throw new Error(body?.error ?? 'Documenten tellen mislukt')
+        }
+        const data = await res.json()
+        const counts = data?.counts as Record<string, number | null> | undefined
+        if (!counts || ac.signal.aborted) return
+        setTenderNedDocCounts((prev) => {
+          const next = { ...prev }
+          for (const id of ids) {
+            if (Object.prototype.hasOwnProperty.call(counts, id)) {
+              next[id] = counts[id] ?? null
+            }
+          }
+          return next
+        })
+      } catch (e) {
+        if (e instanceof Error && e.name === 'AbortError') return
+        if (!ac.signal.aborted) {
+          setTenderNedDocCounts((prev) => {
+            const next = { ...prev }
+            for (const id of ids) {
+              if (next[id] === undefined) next[id] = null
+            }
+            return next
+          })
+        }
+      } finally {
+        if (!ac.signal.aborted) setTenderNedDocCountsLoading(false)
+      }
+    })()
+    return () => ac.abort()
+  }, [showTenderNedPanel, tenderNedPageIdsKey])
+
   const importAsTender = useCallback(async (item: TenderNedItem) => {
     setImportingId(item.publicatieId)
     try {
@@ -245,6 +303,7 @@ export default function TendersClient({ initialTenders, userMap, allUsers, initi
     if (search) {
       const q = search.toLowerCase()
       list = list.filter((t) =>
+        displayTenderTitle(t.title).toLowerCase().includes(q) ||
         t.title?.toLowerCase().includes(q) ||
         t.referenceNumber?.toLowerCase().includes(q) ||
         t.contractingAuthority?.toLowerCase().includes(q)
@@ -471,20 +530,23 @@ export default function TendersClient({ initialTenders, userMap, allUsers, initi
                               )}
                             </th>
                           ))}
+                          <th style={{ padding: '10px 12px', textAlign: 'right', fontWeight: 600, color: 'var(--text-secondary)', width: 110 }}>
+                            Documenten
+                          </th>
                           <th style={{ padding: '10px 12px', width: 140 }}></th>
                         </tr>
                       </thead>
                       <tbody>
                         {tenderNedFilteredAndSorted.length === 0 ? (
                           <tr>
-                            <td colSpan={5} style={{ padding: 32, textAlign: 'center', color: 'var(--text-secondary)' }}>
+                            <td colSpan={6} style={{ padding: 32, textAlign: 'center', color: 'var(--text-secondary)' }}>
                               Geen aankondigingen passen bij de gekozen zoek- of filteropties. Pas filters aan of wis ze.
                             </td>
                           </tr>
                         ) : tenderNedPageItems.map((item) => (
                           <tr key={item.publicatieId} style={{ borderBottom: '1px solid #F3F4F6' }}>
                             <td data-label="Titel" style={{ padding: '10px 12px' }}>
-                              <div style={{ fontWeight: 600, color: 'var(--navy)' }}>{item.title}</div>
+                              <div style={{ fontWeight: 600, color: 'var(--navy)' }}>{displayTenderTitle(item.title)}</div>
                               {item.referenceNumber && (
                                 <div style={{ fontSize: 11, color: 'var(--muted)', fontFamily: 'IBM Plex Mono, monospace' }}>{item.referenceNumber}</div>
                               )}
@@ -494,6 +556,16 @@ export default function TendersClient({ initialTenders, userMap, allUsers, initi
                               {item.deadlineSubmission ? formatDate(new Date(item.deadlineSubmission)) : '—'}
                             </td>
                             <td data-label="Procedure" style={{ padding: '10px 12px', color: 'var(--text-secondary)' }}>{item.procedureType || '—'}</td>
+                            <td
+                              data-label="Documenten"
+                              style={{ padding: '10px 12px', textAlign: 'right', color: 'var(--text-secondary)', fontVariantNumeric: 'tabular-nums' }}
+                            >
+                              {tenderNedDocCountsLoading && tenderNedDocCounts[item.publicatieId] === undefined
+                                ? '…'
+                                : tenderNedDocCounts[item.publicatieId] == null
+                                  ? '—'
+                                  : tenderNedDocCounts[item.publicatieId]}
+                            </td>
                             <td data-label="Actie" style={{ padding: '10px 12px' }}>
                               <Button
                                 variant="secondary"
@@ -722,7 +794,7 @@ export default function TendersClient({ initialTenders, userMap, allUsers, initi
                         <Badge variant="status" value={tender.status || 'new'} />
                       </div>
                       <div style={{ fontSize: 15, fontWeight: 600, color: 'var(--navy)', lineHeight: 1.3, marginBottom: 4 }}>
-                        {tender.title || '—'}
+                        {displayTenderTitle(tender.title) || '—'}
                       </div>
                       {tender.referenceNumber && (
                         <div style={{ fontSize: 11, fontFamily: 'IBM Plex Mono, monospace', color: 'var(--muted)' }}>
@@ -737,7 +809,7 @@ export default function TendersClient({ initialTenders, userMap, allUsers, initi
                       type="button"
                       aria-label="Tender verwijderen"
                       disabled={deletingId === tender.id}
-                      onClick={(ev) => handleDeleteTender(ev, tender.id, tender.title || '')}
+                      onClick={(ev) => handleDeleteTender(ev, tender.id, displayTenderTitle(tender.title) || '')}
                       style={{
                         padding: 8,
                         border: 'none',
@@ -917,7 +989,7 @@ export default function TendersClient({ initialTenders, userMap, allUsers, initi
                       </td>
                       <td style={{ padding: '11px 14px' }}>
                         <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--navy)', marginBottom: 2 }}>
-                          {tender.title || '—'}
+                          {displayTenderTitle(tender.title) || '—'}
                         </div>
                         {tender.contractingAuthority && (
                           <div style={{ fontSize: 11, color: 'var(--muted)' }}>{tender.contractingAuthority}</div>
@@ -973,7 +1045,7 @@ export default function TendersClient({ initialTenders, userMap, allUsers, initi
                           type="button"
                           aria-label="Tender verwijderen"
                           disabled={deletingId === tender.id}
-                          onClick={(ev) => handleDeleteTender(ev, tender.id, tender.title || '')}
+                          onClick={(ev) => handleDeleteTender(ev, tender.id, displayTenderTitle(tender.title) || '')}
                           style={{
                             padding: 6,
                             border: 'none',

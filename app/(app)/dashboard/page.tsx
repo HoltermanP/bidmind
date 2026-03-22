@@ -7,6 +7,7 @@ import Link from 'next/link'
 import PipelineAgentCards from '@/components/dashboard/PipelineAgentCards'
 import PipelineMobileStack from '@/components/dashboard/PipelineMobileStack'
 import { PIPELINE_AGENT_LABELS, PIPELINE_AGENT_DESCRIPTIONS } from '@/lib/tender/pipeline'
+import { displayTenderTitle } from '@/lib/tenders/resolve-project-title'
 
 export const dynamic = 'force-dynamic'
 
@@ -270,7 +271,7 @@ export default async function DashboardPage() {
                           {item.daysLeft}d
                         </span>
                         <div className="dashboard-deadline-info">
-                          <span className="dashboard-deadline-title">{item.tender.title}</span>
+                          <span className="dashboard-deadline-title">{displayTenderTitle(item.tender.title)}</span>
                           <span className="dashboard-deadline-meta" style={{ color: deadlineColor }}>
                             {item.type} — {formatDate(item.date)}
                           </span>

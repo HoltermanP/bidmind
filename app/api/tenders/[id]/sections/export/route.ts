@@ -4,6 +4,7 @@ import { db } from '@/lib/db'
 import { tenderSections, tenders } from '@/lib/db/schema'
 import { eq, asc } from 'drizzle-orm'
 import { buildAanbiedingDocx } from '@/lib/documents/aanbieding-to-docx'
+import { displayTenderTitle } from '@/lib/tenders/resolve-project-title'
 
 export async function GET(
   _request: Request,
@@ -37,7 +38,7 @@ export async function GET(
     }))
   )
 
-  const safeTitle = (tender.title || 'Aanbieding').replace(/[^\w\s-]/g, '').replace(/\s+/g, '_').slice(0, 80)
+  const safeTitle = (displayTenderTitle(tender.title) || 'Aanbieding').replace(/[^\w\s-]/g, '').replace(/\s+/g, '_').slice(0, 80)
   const filename = `Aanbieding_${safeTitle}.docx`
 
   return new Response(new Uint8Array(buffer), {

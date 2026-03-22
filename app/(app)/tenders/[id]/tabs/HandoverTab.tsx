@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from 'react'
 import Button from '@/components/ui/Button'
 import { useToast } from '@/components/ui/Toast'
 import { formatDateTime } from '@/lib/utils/format'
+import { displayTenderTitle } from '@/lib/tenders/resolve-project-title'
 
 interface TenderHandoverSlice {
   id: string
@@ -170,7 +171,7 @@ export default function HandoverTab({ tender, onTenderUpdate }: Props) {
       await downloadHandoverPresentationPptx({
         presentationHtml,
         fileBaseName: base,
-        tenderTitle: tender.title ?? null,
+        tenderTitle: displayTenderTitle(tender.title) ?? null,
       })
     } catch {
       toast('PowerPoint-export mislukt', 'error')
@@ -402,7 +403,7 @@ export default function HandoverTab({ tender, onTenderUpdate }: Props) {
           <div ref={printRef} className="tender-handover-print-root tender-handover-pdf-bundle" aria-hidden>
             <header className="tender-handover-pdf-cover">
               <h1 className="tender-handover-pdf-cover-title">Overdracht</h1>
-              {tender.title ? <p className="tender-handover-pdf-cover-tender">{tender.title}</p> : null}
+              {tender.title ? <p className="tender-handover-pdf-cover-tender">{displayTenderTitle(tender.title)}</p> : null}
               {generatedAt ? (
                 <p className="tender-handover-pdf-cover-meta">Gegenereerd: {formatDateTime(generatedAt)}</p>
               ) : null}

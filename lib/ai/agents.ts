@@ -37,7 +37,8 @@ export const AGENT_CONFIG: Record<AgentId, AgentConfig> = {
   document_analysis: {
     platform: 'anthropic',
     model: 'claude-sonnet-4-20250514',
-    maxTokens: 1500,
+    /** Genoeg ruimte voor volledig JSON-object (summary + arrays); te kort gaf afgeknipte output en parse-fouten. */
+    maxTokens: 8192,
   },
   tender_analysis_report: {
     platform: 'anthropic',

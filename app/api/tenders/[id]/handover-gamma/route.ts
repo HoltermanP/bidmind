@@ -5,6 +5,7 @@ import { tenders, tenderActivities } from '@/lib/db/schema'
 import { eq } from 'drizzle-orm'
 import { gammaCreateGeneration, gammaGetGeneration } from '@/lib/gamma/client'
 import { handoverPresentationHtmlToGammaInput } from '@/lib/gamma/handover-input'
+import { displayTenderTitle } from '@/lib/tenders/resolve-project-title'
 
 function visibleTextLength(html: string): number {
   return html
@@ -56,7 +57,7 @@ export async function POST(_request: NextRequest, { params }: { params: Promise<
       )
     }
 
-    const inputText = handoverPresentationHtmlToGammaInput(html, tender.title)
+    const inputText = handoverPresentationHtmlToGammaInput(html, displayTenderTitle(tender.title))
     const { generationId, warnings } = await gammaCreateGeneration({ apiKey, inputText })
 
     const now = new Date()

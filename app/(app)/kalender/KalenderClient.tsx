@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import Link from 'next/link'
 import { formatDate, getDaysUntil } from '@/lib/utils/format'
+import { displayTenderTitle } from '@/lib/tenders/resolve-project-title'
 
 interface Tender {
   id: string
@@ -33,10 +34,10 @@ export default function KalenderClient({ tenders }: Props) {
   const events: CalEvent[] = []
   for (const t of tenders) {
     if (t.deadlineQuestions) {
-      events.push({ tenderId: t.id, tenderTitle: t.title || '—', type: 'NVI', date: new Date(t.deadlineQuestions), color: 'var(--amber)' })
+      events.push({ tenderId: t.id, tenderTitle: displayTenderTitle(t.title) || '—', type: 'NVI', date: new Date(t.deadlineQuestions), color: 'var(--amber)' })
     }
     if (t.deadlineSubmission) {
-      events.push({ tenderId: t.id, tenderTitle: t.title || '—', type: 'Inschrijving', date: new Date(t.deadlineSubmission), color: '#DC2626' })
+      events.push({ tenderId: t.id, tenderTitle: displayTenderTitle(t.title) || '—', type: 'Inschrijving', date: new Date(t.deadlineSubmission), color: '#DC2626' })
     }
   }
 

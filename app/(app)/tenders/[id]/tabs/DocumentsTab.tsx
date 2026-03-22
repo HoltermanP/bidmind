@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useRef } from 'react'
+import { useState, useRef, type Dispatch, type SetStateAction } from 'react'
 import { useToast } from '@/components/ui/Toast'
 import Badge from '@/components/ui/Badge'
 import Button from '@/components/ui/Button'
@@ -21,7 +21,7 @@ interface Document {
 interface Props {
   tender: any
   documents: Document[]
-  onDocumentsChange: (docs: Document[]) => void
+  onDocumentsChange: Dispatch<SetStateAction<Document[]>>
   userMap: Record<string, any>
 }
 
@@ -39,6 +39,7 @@ const DOC_TYPES = [
 export default function DocumentsTab({ tender, documents, onDocumentsChange, userMap }: Props) {
   const { toast } = useToast()
   const [analyzing, setAnalyzing] = useState<Set<string>>(new Set())
+  const [clearingAnalysis, setClearingAnalysis] = useState<Set<string>>(new Set())
   const [selectedDoc, setSelectedDoc] = useState<Document | null>(null)
   const [uploading, setUploading] = useState(false)
   const [dragOver, setDragOver] = useState(false)
@@ -61,7 +62,7 @@ export default function DocumentsTab({ tender, documents, onDocumentsChange, use
 
         if (!res.ok) throw new Error('Upload mislukt')
         const doc = await res.json()
-        onDocumentsChange([doc, ...documents])
+        onDocumentsChange((prev) => [doc, ...prev])
         toast(`${file.name} geüpload`, 'success')
       } catch (err) {
         toast(`Upload mislukt voor ${file.name}`, 'error')
@@ -77,13 +78,20 @@ export default function DocumentsTab({ tender, documents, onDocumentsChange, use
       const res = await fetch(`/api/tenders/${tender.id}/documents/${doc.id}/analyze`, {
         method: 'POST',
       })
-      if (!res.ok) throw new Error()
-      const updated = await res.json()
-      onDocumentsChange(documents.map((d) => d.id === doc.id ? updated : d))
+      const updated = await res.json().catch(() => ({}))
+      if (!res.ok) {
+        const msg = typeof updated.error === 'string' ? updated.error : `Analyse mislukt (${res.status})`
+        throw new Error(msg)
+      }
+      onDocumentsChange((prev) => prev.map((d) => (d.id === doc.id ? updated : d)))
       if (selectedDoc?.id === doc.id) setSelectedDoc(updated)
-      toast('Analyse voltooid', 'success')
-    } catch {
-      toast('Analyse mislukt', 'error')
+      if (updated.analysisStatus === 'failed') {
+        toast('Analyse mislukt — geen risico\'s of samenvatting opgeslagen', 'error')
+      } else {
+        toast('Analyse voltooid', 'success')
+      }
+    } catch (e) {
+      toast(e instanceof Error ? e.message : 'Analyse mislukt', 'error')
     } finally {
       setAnalyzing((prev) => { const s = new Set(prev); s.delete(doc.id); return s })
     }
@@ -99,11 +107,45 @@ export default function DocumentsTab({ tender, documents, onDocumentsChange, use
   const deleteDocument = async (doc: Document) => {
     try {
       await fetch(`/api/tenders/${tender.id}/documents/${doc.id}`, { method: 'DELETE' })
-      onDocumentsChange(documents.filter((d) => d.id !== doc.id))
+      onDocumentsChange((prev) => prev.filter((d) => d.id !== doc.id))
       if (selectedDoc?.id === doc.id) setSelectedDoc(null)
       toast('Document verwijderd', 'info')
     } catch {
       toast('Verwijderen mislukt', 'error')
+    }
+  }
+
+  const clearDocumentAnalysis = async (doc: Document) => {
+    if (
+      !confirm(
+        'Documentanalyse wissen? De bijbehorende risico-indicatoren verdwijnen uit het overzicht; je kunt later opnieuw analyseren.'
+      )
+    ) {
+      return
+    }
+    setClearingAnalysis((prev) => new Set([...prev, doc.id]))
+    try {
+      const res = await fetch(`/api/tenders/${tender.id}/documents/${doc.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ clearAnalysis: true }),
+      })
+      const updated = await res.json().catch(() => ({}))
+      if (!res.ok) {
+        const msg = typeof updated.error === 'string' ? updated.error : `Wissen mislukt (${res.status})`
+        throw new Error(msg)
+      }
+      onDocumentsChange((prev) => prev.map((d) => (d.id === doc.id ? updated : d)))
+      if (selectedDoc?.id === doc.id) setSelectedDoc(updated)
+      toast('Documentanalyse gewist', 'success')
+    } catch (e) {
+      toast(e instanceof Error ? e.message : 'Wissen mislukt', 'error')
+    } finally {
+      setClearingAnalysis((prev) => {
+        const s = new Set(prev)
+        s.delete(doc.id)
+        return s
+      })
     }
   }
 
@@ -255,6 +297,16 @@ export default function DocumentsTab({ tender, documents, onDocumentsChange, use
                         Analyseer
                       </Button>
                     )}
+                    {doc.analysisStatus === 'done' && (
+                      <Button
+                        size="sm"
+                        variant="secondary"
+                        loading={clearingAnalysis.has(doc.id)}
+                        onClick={(e) => { e.stopPropagation(); clearDocumentAnalysis(doc) }}
+                      >
+                        Analyse wissen
+                      </Button>
+                    )}
                     <button
                       onClick={(e) => { e.stopPropagation(); deleteDocument(doc) }}
                       style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--muted)', padding: 2 }}
@@ -287,11 +339,21 @@ export default function DocumentsTab({ tender, documents, onDocumentsChange, use
           overflow: 'auto',
           maxHeight: 600,
         }}>
-          <div style={{ padding: '14px 16px', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <div style={{ padding: '14px 16px', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
             <span style={{ fontSize: 13, fontWeight: 700, fontFamily: 'Syne, sans-serif', color: 'var(--navy)' }}>AI Analyse</span>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <Button
+                size="sm"
+                variant="secondary"
+                loading={clearingAnalysis.has(selectedDoc.id)}
+                onClick={() => clearDocumentAnalysis(selectedDoc)}
+              >
+                Analyse wissen
+              </Button>
             <button onClick={() => setSelectedDoc(null)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--muted)' }}>
               <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
             </button>
+            </div>
           </div>
           <div style={{ padding: 16, display: 'flex', flexDirection: 'column', gap: 16 }}>
             {selectedDoc.analysisSummary && (

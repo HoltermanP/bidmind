@@ -9,6 +9,7 @@ import {
   convertInchesToTwip,
   type FileChild,
 } from 'docx'
+import { displayTenderTitle } from '@/lib/tenders/resolve-project-title'
 
 /** Converteert een Markdown-string naar een reeks docx Paragraph-elementen. */
 function markdownToParagraphs(md: string): FileChild[] {
@@ -165,11 +166,12 @@ export async function buildAanbiedingDocx(
 ): Promise<Buffer> {
   const sortedSections = [...sections].sort((a, b) => (a.orderIndex ?? 0) - (b.orderIndex ?? 0))
   const children: FileChild[] = []
+  const docTitle = displayTenderTitle(tender.title) || 'Aanbieding'
 
   // Titelpagina / header
   children.push(
     new Paragraph({
-      text: tender.title || 'Aanbieding',
+      text: docTitle,
       heading: HeadingLevel.TITLE,
       alignment: AlignmentType.CENTER,
       spacing: { before: 0, after: 200 },
@@ -228,7 +230,7 @@ export async function buildAanbiedingDocx(
   }
 
   const doc = new Document({
-    title: tender.title || 'Aanbieding',
+    title: docTitle,
     creator: 'BidMind',
     sections: [
       {
