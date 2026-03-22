@@ -7,6 +7,7 @@ import { TENDER_ANALYSIS_REPORT_SYSTEM, TENDER_ANALYSIS_REPORT_USER } from '@/li
 import { runAnthropicCompletionDetailed, isAgentAvailable } from '@/lib/ai/run'
 import { getCompanyContext } from '@/lib/company/context'
 import { sanitizeAndWrapTenderAnalysisHtml } from '@/lib/analysis/sanitize-report-html'
+import { parseTenderAnalysisReportResponse } from '@/lib/analysis/parse-tender-analysis-report'
 
 export const maxDuration = 120
 
@@ -101,7 +102,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
         documentsPayload,
         companyContext: companyContext || undefined,
       }),
-      { maxTokens: 16384 }
+      { maxTokens: 16384, jsonMode: true }
     )
 
     if (stopReason === 'max_tokens') {
@@ -130,7 +131,8 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       )
     }
 
-    const html = sanitizeAndWrapTenderAnalysisHtml(raw || '')
+    const { html: htmlFromParse, estimatedWinProbability } = parseTenderAnalysisReportResponse(raw || '')
+    const html = sanitizeAndWrapTenderAnalysisHtml(htmlFromParse)
     const now = new Date()
 
     if (visibleTextLength(html) < 200) {
@@ -153,23 +155,33 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       )
     }
 
-    const [updated] = await db
-      .update(tenders)
-      .set({
-        analysisReportHtml: html,
-        analysisReportStatus: 'done',
-        analysisReportGeneratedAt: now,
-        updatedAt: now,
-      })
-      .where(eq(tenders.id, id))
-      .returning()
+    const setPayload: Record<string, unknown> = {
+      analysisReportHtml: html,
+      analysisReportStatus: 'done',
+      analysisReportGeneratedAt: now,
+      updatedAt: now,
+    }
+
+    if (estimatedWinProbability !== null) {
+      setPayload.winProbabilityEstimated = estimatedWinProbability
+      const hadNoPriorEstimate = tender.winProbabilityEstimated == null
+      const winStillDefault = (tender.winProbability ?? 0) === 0
+      if (hadNoPriorEstimate && winStillDefault) {
+        setPayload.winProbability = estimatedWinProbability
+      }
+    }
+
+    const [updated] = await db.update(tenders).set(setPayload).where(eq(tenders.id, id)).returning()
 
     await db.insert(tenderActivities).values({
       tenderId: id,
       userId,
       activityType: 'tender_analysis_report',
       description: 'Tenderanalyse (HTML-rapport) gegenereerd',
-      metadata: { stopReason: stopReason ?? undefined },
+      metadata: {
+        stopReason: stopReason ?? undefined,
+        ...(estimatedWinProbability !== null ? { estimatedWinProbability } : {}),
+      },
     })
 
     return NextResponse.json(updated)

@@ -15,17 +15,21 @@ Document:
 ${documentText}
 `
 
-/** Analyse Agent (pipeline): diepe tenderanalyse als één uitgebreid HTML-document voor weergave en PDF-export. */
-export const TENDER_ANALYSIS_REPORT_SYSTEM = `Je bent de Analyse Agent voor een Nederlandse infrastructuuraannemer. Je schrijft een professionele, zeer uitgebreide tenderanalyse als één doorlopend HTML-document (geen Markdown).
+/** Analyse Agent (pipeline): diepe tenderanalyse als één uitgebreid HTML-document + geschatte win-kans. */
+export const TENDER_ANALYSIS_REPORT_SYSTEM = `Je bent de Analyse Agent voor een Nederlandse infrastructuuraannemer. Je schrijft een professionele, zeer uitgebreide tenderanalyse als één doorlopend HTML-document (geen Markdown) én je schat de kans dat dit bedrijf de opdracht wint (win-kans).
 
 Doel (zoals bedoeld in het inschrijfproces):
 - De tender inhoudelijk uitdiepen: technische eisen, gunningscriteria en weging, valkuilen in het bestek, planning en contractuele kaders.
 - Voor infra: aandacht voor UAV-GC waar relevant, contractrisico's, systems engineering- en kwaliteitseisen, milieu- en vergunningcontext als die uit de brondata blijkt.
 - Lever concrete aandachtspunten voor de inschrijver en NVI-strategie.
 
+Win-kans (estimated_win_probability): geheel getal van 0 tot 100. Baseer je op proceduretype, concurrentie, passendheid met de bedrijfscontext, eisen en risico's, en de inschatting van scorepotentieel. Wees realistisch; 50% is geen standaardantwoord.
+
 Schrijf in helder Nederlands, zakelijk en toon. Wees uitgebreid: meerdere pagina's equivalent aan lopende tekst, met duidelijke tussenkoppen en waar nuttig tabellen. Geen opsommingen die alleen uit losse bullets bestaan; liever paragrafen met waar nodig korte lijsten.
 
-Output: uitsluitend geldige HTML. Geen inleidende zin vóór de HTML; het eerste teken van je antwoord moet "<" zijn (start direct met <article).`
+Output: uitsluitend één geldig JSON-object (geen markdown-fences, geen tekst eromheen) met exact deze sleutels:
+- "estimated_win_probability": integer 0–100
+- "html": string met het volledige HTML-fragment (zie gebruikersprompt voor structuur)`
 
 export const TENDER_ANALYSIS_REPORT_USER = (payload: {
   tenderJson: string
@@ -39,16 +43,18 @@ ${payload.tenderJson}
 ${payload.documentsPayload}
 
 --- Instructie ---
-Genereer ÉÉN HTML-fragment dat begint met <article class="tender-analysis-report"> en eindigt met </article>.
+Vul het JSON-antwoord in. Het veld "html" bevat ÉÉN HTML-fragment dat begint met <article class="tender-analysis-report"> en eindigt met </article>.
 
-Technische regels:
+Technische regels voor "html":
 - Gebruik semantische tags: article, section, h1 (één titel), h2, h3, p, ul, ol, li, table (thead, tbody, tr, th, td), strong, em, blockquote.
 - Geen script, style, iframe, onclick of externe bronnen. Geen classnames behalve op de root article en eventueel eenvoudige subkopjes.
 - Voeg een korte titel in h1 en een ondertitel met aanbestedende dienst / referentie als bekend.
-- Verplichte inhoudelijke secties (h2): (1) Executive summary, (2) Scope en opdracht, (3) Technische eisen en specificaties, (4) Gunningscriteria en weging, (5) Contract, UAV-GC en risico's, (6) Planning, deadlines en mijlpalen, (7) NVI en strategische aandachtspunten, (8) Conclusie en advies voor de inschrijving.
+- Verplichte inhoudelijke secties (h2): (1) Executive summary, (2) Scope en opdracht, (3) Technische eisen en specificaties, (4) Gunningscriteria en weging, (5) Contract, UAV-GC en risico's, (6) Planning, deadlines en mijlpalen, (7) NVI en strategische aandachtspunten, (8) Conclusie en advies voor de inschrijving — en (9) kort: toelichting bij de geschatte win-kans (waarom dit percentage past bij de analyse).
 - Zijn gegevens onbekend in de bron, zeg dat expliciet en werk met voorzichtige aannames, noem ze als zodanig.
 
-Lever alleen het HTML-fragment, zonder markdown code fences en zonder tekst vóór de eerste <tag>.
+Het veld "estimated_win_probability" moet overeenkomen met je inhoudelijke inschatting (niet automatisch 50).
+
+Retourneer alleen het JSON-object, correct ge-escaped binnen de html-string (aanhalingstekens in HTML als &quot; of vermijd ze).
 `
 
 /** Review Agent (pipeline): kwaliteitsreview van de conceptaanbieding als HTML-rapport. */

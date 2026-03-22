@@ -35,6 +35,8 @@ export const tenders = pgTable('tenders', {
   status: tenderStatusEnum('status').default('new'),
   goNoGo: goNoGoEnum('go_no_go').default('pending'),
   winProbability: integer('win_probability').default(0),
+  /** Geschatte win-kans (0–100) uit de laatste tenderanalyse; handmatige Win% blijft in winProbability */
+  winProbabilityEstimated: integer('win_probability_estimated'),
   tenderManagerId: text('tender_manager_id'),
   teamMemberIds: text('team_member_ids').array().default([]),
   tendernetUrl: text('tendernet_url'),

@@ -1,0 +1,1 @@
+ALTER TABLE "tenders" ADD COLUMN "win_probability_estimated" integer;

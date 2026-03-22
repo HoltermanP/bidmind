@@ -207,16 +207,29 @@ export default function TenderDetailClient({ tender: initialTender, documents: i
                 </div>
               )}
 
-              {/* Win probability */}
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
+              {/* Win probability (handmatig); geschatte waarde uit tenderanalyse apart vastgelegd */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0, flexWrap: 'wrap' }}>
                 <span style={{ fontSize: 11, color: 'var(--text-secondary)', whiteSpace: 'nowrap' }}>Win%:</span>
+                {tender.winProbabilityEstimated != null && (
+                  <span
+                    title="Automatisch ingeschat bij de laatste tenderanalyse"
+                    style={{
+                      fontSize: 10,
+                      color: 'var(--muted)',
+                      whiteSpace: 'nowrap',
+                      fontFamily: 'IBM Plex Mono, monospace',
+                    }}
+                  >
+                    Analyse {tender.winProbabilityEstimated}%
+                  </span>
+                )}
                 <input
                   type="range"
                   min={0}
                   max={100}
                   value={tender.winProbability || 0}
                   onChange={(e) => setTender({ ...tender, winProbability: parseInt(e.target.value) })}
-                  onMouseUp={(e) => patchTender({ winProbability: parseInt((e.target as HTMLInputElement).value) })}
+                  onPointerUp={(e) => patchTender({ winProbability: parseInt((e.target as HTMLInputElement).value) })}
                   style={{ width: 80, cursor: 'pointer', accentColor: '#F5A623', flexShrink: 0 }}
                 />
                 <span style={{ fontSize: 11, fontWeight: 700, fontFamily: 'IBM Plex Mono, monospace', color: 'var(--navy)', minWidth: 28 }}>

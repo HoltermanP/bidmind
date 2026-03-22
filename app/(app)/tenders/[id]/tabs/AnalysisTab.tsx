@@ -12,6 +12,7 @@ interface TenderAnalysisSlice {
   analysisReportHtml?: string | null
   analysisReportStatus?: string | null
   analysisReportGeneratedAt?: Date | string | null
+  winProbabilityEstimated?: number | null
 }
 
 interface DocumentAnalysisRow {
@@ -181,9 +182,13 @@ export default function AnalysisTab({ tender, documents, onTenderUpdate }: Props
 
       {html && (
         <div style={{ marginTop: 4 }}>
-          {generatedAt && (
+          {(generatedAt || tender.winProbabilityEstimated != null) && (
             <p style={{ fontSize: 12, color: 'var(--muted)', marginBottom: 12 }}>
-              Laatst gegenereerd: {formatDateTime(generatedAt)}
+              {generatedAt && <>Laatst gegenereerd: {formatDateTime(generatedAt)}</>}
+              {generatedAt && tender.winProbabilityEstimated != null && ' · '}
+              {tender.winProbabilityEstimated != null && (
+                <>Geschatte win-kans uit analyse: {tender.winProbabilityEstimated}% (aanpasbaar bij Win% hierboven)</>
+              )}
             </p>
           )}
           <div ref={printRef} className="tender-analysis-print-root">
