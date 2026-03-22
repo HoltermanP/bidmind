@@ -18,6 +18,7 @@ export type PipelineStageId = (typeof PIPELINE_STAGES)[number]
 /** Tabbladen op de tenderdetailpagina (volgorde staat in de UI). */
 export const TENDER_DETAIL_TAB_IDS = [
   'overview',
+  'handover',
   'documents',
   'analysis',
   'questions',
@@ -29,6 +30,7 @@ export type TenderDetailTabId = (typeof TENDER_DETAIL_TAB_IDS)[number]
 
 export const TENDER_DETAIL_TAB_LABELS: Record<TenderDetailTabId, string> = {
   overview: 'Overzicht',
+  handover: 'Overdracht',
   documents: 'Documenten',
   analysis: 'Tenderanalyse',
   questions: 'NVI Vragen',
@@ -47,7 +49,7 @@ export const PIPELINE_STAGE_TO_TAB: Record<PipelineStageId, TenderDetailTabId> =
   writing: 'sections',
   review: 'sections',
   submitted: 'timeline',
-  won: 'overview',
+  won: 'handover',
   lost: 'timeline',
 }
 
@@ -63,7 +65,8 @@ export function getTabForPipelineStatus(status: string): TenderDetailTabId {
 
 /** Korte hint op tabknoppen: welke pipeline-fases hier logisch bij horen. */
 export const TENDER_TAB_PIPELINE_HINT: Record<TenderDetailTabId, string> = {
-  overview: 'Past bij pipeline: Nieuw, Gewonnen, Ingetrokken',
+  overview: 'Past bij pipeline: Nieuw, Ingetrokken',
+  handover: 'Past bij pipeline: Gewonnen — Overdracht Agent (implementatieplan & presentatie)',
   documents: 'Past bij pipeline: Kwalificatie (screening, documenten)',
   analysis: 'Past bij pipeline: Analyse',
   questions: 'NVI-vragen (handmatig; geen vaste pipeline-stap)',
@@ -93,7 +96,7 @@ export const PIPELINE_AGENT_TAGLINE: Record<PipelineStageId, string> = {
   writing: 'Conceptteksten',
   review: 'Kwaliteit & consistentie',
   submitted: 'Deadlines & besluit',
-  won: 'Contract & start',
+  won: 'Plan & overdracht',
   lost: 'Leren & verbeteren',
 }
 
@@ -109,6 +112,6 @@ export const PIPELINE_AGENT_DESCRIPTIONS: Record<PipelineStageId, string> = {
     'Checkt de inschrijving op volledigheid, consistentie, toon en scorepotentieel. Vergelijkt met gunningscriteria. Output: reviewrapport met verbeterpunten.',
   submitted:
     'Houdt deadlines bij, signaleert verzoeken om aanvullende info, bewaakt de beslistermijn. Output: alerts + statusupdate.',
-  won: "Extraheert contractverplichtingen, KPI's en mijlpalen uit de winnende inschrijving. Bereidt de projectstart voor. Output: contractsamenvatting voor projectteam.",
+  won: 'Bereidt overdracht naar uitvoering voor: concreet implementatieplan (fasen, mijlpalen, risico’s, RACI) én een beknopte presentatiesamenvatting voor interne kick-off. Output: plan + slide-achtige presentatie (HTML).',
   lost: 'Analyseert de afwijzing (als feedback beschikbaar), vergelijkt met gewonnen concurrenten, leert voor de volgende inschrijving. Output: verbeterpunten voor het volgende tender.',
 }

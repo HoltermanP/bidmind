@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useRef, useEffect, useLayoutEffect } from 'react'
+import { useState, useRef, useEffect, useLayoutEffect, useMemo } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { motion, AnimatePresence } from 'framer-motion'
@@ -17,6 +17,7 @@ import DocumentsTab from './tabs/DocumentsTab'
 import QuestionsTab from './tabs/QuestionsTab'
 import SectionsTab from './tabs/SectionsTab'
 import TimelineTab from './tabs/TimelineTab'
+import HandoverTab from './tabs/HandoverTab'
 
 interface Props {
   tender: any
@@ -29,7 +30,7 @@ interface Props {
   allUsers: any[]
 }
 
-const TABS: { id: TenderDetailTabId; label: string }[] = [
+const BASE_TABS: { id: TenderDetailTabId; label: string }[] = [
   { id: 'overview', label: 'Overzicht' },
   { id: 'documents', label: 'Documenten' },
   { id: 'analysis', label: 'Tenderanalyse' },
@@ -49,6 +50,23 @@ export default function TenderDetailClient({ tender: initialTender, documents: i
   const [activities, setActivities] = useState(initialActivities)
   const { toast } = useToast()
   const router = useRouter()
+
+  const detailTabs = useMemo(() => {
+    if (tender.status === 'won') {
+      return [
+        { id: 'overview' as const, label: 'Overzicht' },
+        { id: 'handover' as const, label: 'Overdracht' },
+        ...BASE_TABS.slice(1),
+      ]
+    }
+    return BASE_TABS
+  }, [tender.status])
+
+  useEffect(() => {
+    if (tender.status !== 'won' && activeTab === 'handover') {
+      setActiveTab('overview')
+    }
+  }, [tender.status, activeTab])
 
   useLayoutEffect(() => {
     const el = tabRefs.current[activeTab]
@@ -243,7 +261,7 @@ export default function TenderDetailClient({ tender: initialTender, documents: i
 
         {/* Tabs – duidelijke onderrand, body valt niet onder dit blok */}
         <div style={{ position: 'relative', display: 'flex', gap: 0, flexShrink: 0, overflowX: 'auto', overflowY: 'hidden', paddingBottom: 10 }}>
-          {TABS.map((tab) => (
+          {detailTabs.map((tab) => (
             <button
               key={tab.id}
               ref={(el) => { tabRefs.current[tab.id] = el }}
@@ -308,6 +326,12 @@ export default function TenderDetailClient({ tender: initialTender, documents: i
             >
               {activeTab === 'overview' && (
                 <OverviewTab tender={tender} onUpdate={patchTender} allUsers={allUsers} userMap={userMap} />
+              )}
+              {activeTab === 'handover' && tender.status === 'won' && (
+                <HandoverTab
+                  tender={tender}
+                  onTenderUpdate={(updates) => setTender((prev: any) => ({ ...prev, ...updates }))}
+                />
               )}
               {activeTab === 'analysis' && (
                 <AnalysisTab

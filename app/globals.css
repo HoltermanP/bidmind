@@ -1418,3 +1418,165 @@ article.tender-review-report blockquote {
   background: #fffafb;
   color: var(--text-secondary);
 }
+
+/* Overdracht Agent: implementatieplan + presentatie */
+.tender-handover-screen-view {
+  background: white;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 28px 32px 40px;
+  max-width: 900px;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.06);
+}
+
+/* Implementatieplan: opmaak via parent .section-content-preview (zelfde als aanbiedingssecties) */
+article.tender-handover-plan > :first-child {
+  margin-top: 0;
+}
+article.tender-handover-plan > :last-child {
+  margin-bottom: 0;
+}
+
+article.tender-handover-presentation h1 {
+  font-family: 'Syne', sans-serif;
+  font-size: 1.75rem;
+  font-weight: 700;
+  color: var(--navy);
+  margin: 0 0 12px;
+  letter-spacing: -0.02em;
+}
+
+article.tender-handover-presentation h2 {
+  font-family: 'Syne', sans-serif;
+  font-size: 1.2rem;
+  font-weight: 700;
+  color: var(--navy);
+  margin: 28px 0 12px;
+  padding-bottom: 6px;
+  border-bottom: 2px solid var(--slate-blue);
+}
+
+article.tender-handover-presentation h3 {
+  font-family: 'Syne', sans-serif;
+  font-size: 1.05rem;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin: 20px 0 8px;
+}
+
+article.tender-handover-presentation p {
+  margin: 0 0 12px;
+}
+
+article.tender-handover-presentation ul,
+article.tender-handover-presentation ol {
+  margin: 0 0 14px 1.2em;
+  padding: 0;
+}
+
+article.tender-handover-presentation table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+  margin: 12px 0 20px;
+}
+
+article.tender-handover-presentation th,
+article.tender-handover-presentation td {
+  border: 1px solid var(--border);
+  padding: 8px 10px;
+  text-align: left;
+  vertical-align: top;
+}
+
+article.tender-handover-presentation th {
+  background: #f8fafc;
+  font-weight: 600;
+  color: var(--navy);
+}
+
+article.tender-handover-presentation {
+  font-family: 'IBM Plex Sans', system-ui, sans-serif;
+  font-size: 14px;
+  line-height: 1.55;
+  color: var(--text-primary);
+}
+
+article.tender-handover-presentation section.handover-slide {
+  background: linear-gradient(145deg, #f8fafc 0%, #ffffff 100%);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 22px 26px;
+  margin-bottom: 18px;
+  box-shadow: 0 2px 8px rgba(15, 23, 42, 0.06);
+  min-height: 120px;
+  break-inside: avoid;
+  page-break-inside: avoid;
+}
+
+article.tender-handover-presentation section.handover-slide h2,
+article.tender-handover-presentation section.handover-slide h3 {
+  border: none;
+  margin-top: 0;
+  padding-bottom: 0;
+}
+
+/* Overdracht PDF (html2pdf): bundel buiten beeld — nette cover + sectiekoppen, page-breaks */
+.tender-handover-pdf-bundle {
+  position: fixed;
+  left: -12000px;
+  top: 0;
+  width: 210mm;
+  max-width: 900px;
+  box-sizing: border-box;
+  background: #ffffff;
+  padding: 28px 32px 40px;
+  font-family: 'IBM Plex Sans', system-ui, sans-serif;
+  color: var(--text-primary);
+}
+
+.tender-handover-pdf-cover {
+  margin-bottom: 28px;
+  padding-bottom: 20px;
+  border-bottom: 2px solid var(--slate-blue);
+}
+
+.tender-handover-pdf-cover-title {
+  font-family: 'Syne', sans-serif;
+  font-size: 1.35rem;
+  font-weight: 700;
+  color: var(--navy);
+  margin: 0 0 8px;
+  letter-spacing: -0.02em;
+}
+
+.tender-handover-pdf-cover-meta {
+  font-size: 12px;
+  color: var(--text-secondary);
+  margin: 0;
+  line-height: 1.5;
+}
+
+.tender-handover-pdf-cover-tender {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin: 0 0 6px;
+  line-height: 1.45;
+}
+
+.tender-handover-pdf-section-title {
+  font-family: 'Syne', sans-serif;
+  font-size: 1.15rem;
+  font-weight: 700;
+  color: var(--navy);
+  margin: 0 0 16px;
+  padding-bottom: 8px;
+  border-bottom: 2px solid var(--slate-blue);
+}
+
+.tender-handover-pdf-divider {
+  margin: 28px 0;
+  border: none;
+  border-top: 1px solid var(--border);
+}

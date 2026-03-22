@@ -39,6 +39,7 @@
     "next": "16.1.7",
     "openai": "^6.32.0",
     "pdf-parse": "^2.4.5",
+    "pptxgenjs": "^4.0.1",
     "react": "19.2.3",
     "react-dom": "19.2.3",
     "react-markdown": "^10.1.0",

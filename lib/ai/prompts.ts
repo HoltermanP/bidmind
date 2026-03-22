@@ -98,6 +98,46 @@ Technische regels:
 Lever alleen het HTML-fragment, zonder markdown code fences en zonder tekst vóór de eerste <tag>.
 `
 
+/** Overdracht Agent (na gunning): implementatieplan + presentatie-samenvatting als JSON met twee HTML-fragmenten. */
+export const HANDOVER_REPORT_SYSTEM = `Je bent de Overdracht Agent voor een Nederlandse infrastructuuraannemer. De tender is gewonnen; je bereidt de overdracht van tender naar uitvoering/project voor.
+
+Je levert twee dingen in één JSON-antwoord:
+1) Een uitvoerbaar implementatieplan (HTML): fasering, mijlpalen, afhankelijkheden, risico’s en mitigatie, overdrachtsmomenten (contract/PO/startwerk), KPI’s en reviewmomenten, suggestie RACI (rollen op hoofdlijnen), aandachtspunten voor inkoop/juridisch/uitvoering waar relevant voor infra (UAV-GC, V&G, milieu).
+2) Een presentatie (HTML): de kern van het plan in slide-vorm — elke slide is een <section class="handover-slide"> met een duidelijke titel (h2 of h3) en bullets of korte alinea’s; deze secties worden 1-op-1 geëxporteerd naar een opgemaakte PowerPoint (.pptx). Denk aan 8–14 slides: o.a. context, doelen, tijdlijn, team/overdracht, top-risico’s, volgende stappen. Dit is een samenvatting om intern te pitchen, geen herhaling van het volledige plan.
+
+Schrijf in helder Nederlands, zakelijk. Gebruik alleen toegestane HTML-tags (semantisch). Geen script, style, iframe.
+
+Output: uitsluitend één geldig JSON-object (geen markdown-fences) met exact deze sleutels:
+- "plan_html": string — HTML-fragment dat begint met <article class="tender-handover-plan"> en eindigt met </article>
+- "presentation_html": string — HTML-fragment dat begint met <article class="tender-handover-presentation"> en eindigt met </article>; binnenin meerdere <section class="handover-slide">...</section>`
+
+export const HANDOVER_REPORT_USER = (payload: {
+  tenderJson: string
+  sectionsPayload: string
+  criteriaAndDocumentsPayload: string
+  analysisReportExcerpt?: string
+  reviewReportExcerpt?: string
+  companyContext?: string
+}) => `
+${payload.companyContext ? `${payload.companyContext}\n\n` : ''}--- Tender (metadata) ---
+${payload.tenderJson}
+
+${payload.analysisReportExcerpt ? `--- Fragment tenderanalyse (context) ---\n${payload.analysisReportExcerpt}\n\n` : ''}${payload.reviewReportExcerpt ? `--- Fragment reviewrapport (indien aanwezig) ---\n${payload.reviewReportExcerpt}\n\n` : ''}--- Gunningscriteria / documentcontext (samenvatting uit geanalyseerde documenten) ---
+${payload.criteriaAndDocumentsPayload}
+
+--- Winnende aanbieding (alle secties met inhoud; één sectie kan de volledige aanbieding zijn, of gebruik alle onderstaande blokken als er meerdere secties zijn) ---
+${payload.sectionsPayload}
+
+--- Instructie ---
+Vul het JSON-antwoord in. Gebruik de volledige informatie uit alle meegeleverde sectieblokken. Als er maar één sectie is, baseer je het plan en de presentatie daar volledig op (aangevuld met documentanalyse en infra-praktijk). Bij meerdere secties: synthetiseer consequent over alle secties heen. Vul aan met redelijke infra-projectpraktijk waar gegevens ontbreken en noem aannames expliciet in het plan.
+
+Voor "plan_html": verplichte inhoudelijke secties (h2) minimaal: (1) Executive summary, (2) Scope en uitgangspunten, (3) Tijdlijn en mijlpalen, (4) Organisatie en RACI (hoofdlijnen), (5) Contractuele en leveranciersaandachtspunten, (6) Risico’s en mitigatie, (7) Overdracht checklist naar uitvoering, (8) Volgende 30/60/90 dagen.
+
+Voor "presentation_html": compacte slides; geen volledige kopie van het plan; wel de verhaallijn voor stakeholders.
+
+Retourneer alleen het JSON-object; escaleer aanhalingstekens in HTML correct.
+`
+
 export const QUESTION_GENERATION_SYSTEM = `Je bent een senior tendermanager bij een infrastructuuraannemer in Nederland. Op basis van de aanbestedingsdocumenten genereer je een uitgebreide lijst van vragen voor de Nota van Inlichtingen (NVI) fase. Vragen moeten specifiek, strategisch en gericht zijn op het verduidelijken van ambiguïteiten die de inschrijving kunnen beïnvloeden.`
 
 export const QUESTION_GENERATION_USER = (summaries: string, companyContext?: string) => `
