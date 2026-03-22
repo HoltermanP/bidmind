@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useRef, useEffect, useLayoutEffect, useMemo } from 'react'
+import { useState, useRef, useEffect, useLayoutEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { motion, AnimatePresence } from 'framer-motion'
@@ -30,6 +30,7 @@ interface Props {
   allUsers: any[]
 }
 
+/** Volgorde volgt de tenderflow: van intake tot monitoring; Overdracht staat vast als laatste (na gunning). */
 const BASE_TABS: { id: TenderDetailTabId; label: string }[] = [
   { id: 'overview', label: 'Overzicht' },
   { id: 'documents', label: 'Documenten' },
@@ -37,6 +38,7 @@ const BASE_TABS: { id: TenderDetailTabId; label: string }[] = [
   { id: 'questions', label: 'NVI Vragen' },
   { id: 'sections', label: 'Aanbieding' },
   { id: 'timeline', label: 'Tijdlijn' },
+  { id: 'handover', label: 'Overdracht' },
 ]
 
 export default function TenderDetailClient({ tender: initialTender, documents: initialDocs, questions: initialQuestions, sections: initialSections, activities: initialActivities, notes: initialNotes, userMap, allUsers }: Props) {
@@ -50,23 +52,6 @@ export default function TenderDetailClient({ tender: initialTender, documents: i
   const [activities, setActivities] = useState(initialActivities)
   const { toast } = useToast()
   const router = useRouter()
-
-  const detailTabs = useMemo(() => {
-    if (tender.status === 'won') {
-      return [
-        { id: 'overview' as const, label: 'Overzicht' },
-        { id: 'handover' as const, label: 'Overdracht' },
-        ...BASE_TABS.slice(1),
-      ]
-    }
-    return BASE_TABS
-  }, [tender.status])
-
-  useEffect(() => {
-    if (tender.status !== 'won' && activeTab === 'handover') {
-      setActiveTab('overview')
-    }
-  }, [tender.status, activeTab])
 
   useLayoutEffect(() => {
     const el = tabRefs.current[activeTab]
@@ -261,12 +246,18 @@ export default function TenderDetailClient({ tender: initialTender, documents: i
 
         {/* Tabs – duidelijke onderrand, body valt niet onder dit blok */}
         <div style={{ position: 'relative', display: 'flex', gap: 0, flexShrink: 0, overflowX: 'auto', overflowY: 'hidden', paddingBottom: 10 }}>
-          {detailTabs.map((tab) => (
+          {BASE_TABS.map((tab) => {
+            const handoverLocked = tab.id === 'handover' && tender.status !== 'won'
+            return (
             <button
               key={tab.id}
               ref={(el) => { tabRefs.current[tab.id] = el }}
               onClick={() => setActiveTab(tab.id)}
-              title={TENDER_TAB_PIPELINE_HINT[tab.id]}
+              title={
+                handoverLocked
+                  ? `${TENDER_TAB_PIPELINE_HINT[tab.id]} — Zet de pipeline op “Gewonnen” om de Overdracht Agent te gebruiken.`
+                  : TENDER_TAB_PIPELINE_HINT[tab.id]
+              }
               style={{
                 padding: '6px 14px',
                 background: 'none',
@@ -280,6 +271,7 @@ export default function TenderDetailClient({ tender: initialTender, documents: i
                 transition: 'color 0.15s',
                 flexShrink: 0,
                 whiteSpace: 'nowrap',
+                opacity: handoverLocked ? 0.55 : 1,
               }}
             >
               {tab.label}
@@ -293,7 +285,8 @@ export default function TenderDetailClient({ tender: initialTender, documents: i
                 <span style={{ marginLeft: 6, background: approvedSections > 0 ? '#D1FAE5' : '#F3F4F6', borderRadius: 10, padding: '1px 6px', fontSize: 10, fontWeight: 700, color: approvedSections > 0 ? '#065F46' : 'var(--text-secondary)' }}>{approvedSections}/{sections.length}</span>
               )}
             </button>
-          ))}
+            )
+          })}
           {/* Tab indicator – exacte breedte onder actieve tab */}
           {tabIndicator.width > 0 && (
             <div
@@ -332,6 +325,36 @@ export default function TenderDetailClient({ tender: initialTender, documents: i
                   tender={tender}
                   onTenderUpdate={(updates) => setTender((prev: any) => ({ ...prev, ...updates }))}
                 />
+              )}
+              {activeTab === 'handover' && tender.status !== 'won' && (
+                <div
+                  style={{
+                    maxWidth: 520,
+                    padding: 24,
+                    borderRadius: 8,
+                    border: '1px solid var(--border)',
+                    background: '#F9FAFB',
+                  }}
+                >
+                  <h2
+                    style={{
+                      fontFamily: 'Syne, sans-serif',
+                      fontSize: 18,
+                      fontWeight: 700,
+                      color: 'var(--navy)',
+                      marginBottom: 8,
+                    }}
+                  >
+                    Overdracht Agent
+                  </h2>
+                  <p style={{ fontSize: 14, color: 'var(--text-secondary)', lineHeight: 1.5, marginBottom: 16 }}>
+                    Implementatieplan en presentatie horen bij de fase <strong>Gewonnen</strong>. Zet de pipeline hierboven op
+                    Gewonnen zodra de opdracht is gegund — dan kun je hier het plan en de presentatie laten genereren.
+                  </p>
+                  <Button type="button" size="sm" onClick={() => patchTender({ status: 'won' })}>
+                    Pipeline op Gewonnen zetten
+                  </Button>
+                </div>
               )}
               {activeTab === 'analysis' && (
                 <AnalysisTab

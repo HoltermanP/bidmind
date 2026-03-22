@@ -18,12 +18,12 @@ export type PipelineStageId = (typeof PIPELINE_STAGES)[number]
 /** Tabbladen op de tenderdetailpagina (volgorde staat in de UI). */
 export const TENDER_DETAIL_TAB_IDS = [
   'overview',
-  'handover',
   'documents',
   'analysis',
   'questions',
   'sections',
   'timeline',
+  'handover',
 ] as const
 
 export type TenderDetailTabId = (typeof TENDER_DETAIL_TAB_IDS)[number]
@@ -66,7 +66,7 @@ export function getTabForPipelineStatus(status: string): TenderDetailTabId {
 /** Korte hint op tabknoppen: welke pipeline-fases hier logisch bij horen. */
 export const TENDER_TAB_PIPELINE_HINT: Record<TenderDetailTabId, string> = {
   overview: 'Past bij pipeline: Nieuw, Ingetrokken',
-  handover: 'Past bij pipeline: Gewonnen — Overdracht Agent (implementatieplan & presentatie)',
+  handover: 'Hoort bij pipeline: Gewonnen — Overdracht Agent (implementatieplan & presentatie). Tabblad staat altijd rechts; actief na gunning.',
   documents: 'Past bij pipeline: Kwalificatie (screening, documenten)',
   analysis: 'Past bij pipeline: Analyse',
   questions: 'NVI-vragen (handmatig; geen vaste pipeline-stap)',
