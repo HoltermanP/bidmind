@@ -6,6 +6,7 @@ import { eq } from 'drizzle-orm'
 import { SECTION_WRITING_SYSTEM, SECTION_WRITING_USER } from '@/lib/ai/prompts'
 import { runCompletionStream, isAgentAvailable } from '@/lib/ai/run'
 import { getCompanyContext } from '@/lib/company/context'
+import { buildLessonsLearnedContextForWriting } from '@/lib/tenders/lessons-learned-eval'
 
 const SECTION_TYPE_LABELS: Record<string, string> = {
   plan_van_aanpak: 'Plan van Aanpak',
@@ -65,6 +66,7 @@ export async function POST(
 
   const sectionTypeLabel = SECTION_TYPE_LABELS[section?.sectionType || 'eigen_sectie'] || (body.sectionType || 'sectie')
   const companyContext = await getCompanyContext()
+  const lessonsLearnedContext = await buildLessonsLearnedContextForWriting(35)
 
   const userContent = SECTION_WRITING_USER(
     sectionTypeLabel,
@@ -73,6 +75,7 @@ export async function POST(
     requirements.length ? requirements : ['Conform de eisen van de aanbestedende dienst.'],
     documentContext,
     companyContext || undefined,
+    lessonsLearnedContext || undefined,
   )
 
   const encoder = new TextEncoder()

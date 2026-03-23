@@ -18,6 +18,7 @@ import QuestionsTab from './tabs/QuestionsTab'
 import SectionsTab from './tabs/SectionsTab'
 import TimelineTab from './tabs/TimelineTab'
 import HandoverTab from './tabs/HandoverTab'
+import LessonsLearnedTab from './tabs/LessonsLearnedTab'
 
 interface Props {
   tender: any
@@ -26,6 +27,7 @@ interface Props {
   sections: any[]
   activities: any[]
   notes: any[]
+  lessonsLearned: any[]
   userMap: Record<string, any>
   allUsers: any[]
 }
@@ -37,11 +39,12 @@ const BASE_TABS: { id: TenderDetailTabId; label: string }[] = [
   { id: 'analysis', label: 'Tenderanalyse' },
   { id: 'questions', label: 'NVI Vragen' },
   { id: 'sections', label: 'Aanbieding' },
+  { id: 'lessons', label: 'Leerpunten' },
   { id: 'timeline', label: 'Tijdlijn' },
   { id: 'handover', label: 'Overdracht' },
 ]
 
-export default function TenderDetailClient({ tender: initialTender, documents: initialDocs, questions: initialQuestions, sections: initialSections, activities: initialActivities, notes: initialNotes, userMap, allUsers }: Props) {
+export default function TenderDetailClient({ tender: initialTender, documents: initialDocs, questions: initialQuestions, sections: initialSections, activities: initialActivities, notes: initialNotes, lessonsLearned: initialLessons, userMap, allUsers }: Props) {
   const [activeTab, setActiveTab] = useState<TenderDetailTabId>(() => getTabForPipelineStatus(initialTender.status))
   const [tabIndicator, setTabIndicator] = useState<{ left: number; width: number }>({ left: 0, width: 0 })
   const tabRefs = useRef<Record<string, HTMLButtonElement | null>>({})
@@ -50,8 +53,26 @@ export default function TenderDetailClient({ tender: initialTender, documents: i
   const [questions, setQuestions] = useState(initialQuestions)
   const [sections, setSections] = useState(initialSections)
   const [activities, setActivities] = useState(initialActivities)
+  const [lessonsLearned, setLessonsLearned] = useState(initialLessons)
   const { toast } = useToast()
   const router = useRouter()
+  const [intakeLoading, setIntakeLoading] = useState(false)
+
+  const runIntakeSuitability = useCallback(async () => {
+    setIntakeLoading(true)
+    try {
+      const res = await fetch(`/api/tenders/${tender.id}/intake-suitability`, { method: 'POST' })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) throw new Error(data?.error ?? 'Herberekening mislukt')
+      setTender(data)
+      toast('Geschiktheid bijgewerkt', 'success')
+      router.refresh()
+    } catch (e) {
+      toast(e instanceof Error ? e.message : 'Herberekening mislukt', 'error')
+    } finally {
+      setIntakeLoading(false)
+    }
+  }, [tender.id, toast, router])
 
   useLayoutEffect(() => {
     const el = tabRefs.current[activeTab]
@@ -161,6 +182,59 @@ export default function TenderDetailClient({ tender: initialTender, documents: i
             </div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 8, minWidth: 0, width: '100%' }}>
               <TenderPipelineStrip status={tender.status} onStatusChange={(next) => patchTender({ status: next })} />
+              <div
+                style={{
+                  marginTop: 2,
+                  padding: '10px 12px',
+                  background: 'var(--off-white)',
+                  borderRadius: 6,
+                  border: '1px solid var(--border)',
+                  fontSize: 12,
+                }}
+              >
+                <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontWeight: 600, color: 'var(--navy)', marginBottom: 6 }}>Intake geschiktheid</div>
+                    {tender.intakeSuitabilityStatus === 'done' && tender.intakeSuitabilityTier ? (
+                      <>
+                        <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 8, marginBottom: 6 }}>
+                          <Badge variant="suitability" value={tender.intakeSuitabilityTier} />
+                          {tender.intakeSuitabilityScore != null && (
+                            <span style={{ fontFamily: 'IBM Plex Mono, monospace', color: 'var(--text-secondary)' }}>
+                              Score {tender.intakeSuitabilityScore}/100
+                            </span>
+                          )}
+                          {tender.intakeSuitabilityGeneratedAt && (
+                            <span style={{ color: 'var(--muted)', fontSize: 11 }}>
+                              {formatDateTime(tender.intakeSuitabilityGeneratedAt)}
+                            </span>
+                          )}
+                        </div>
+                        {tender.intakeSuitabilitySummary && (
+                          <p style={{ margin: 0, color: 'var(--text-secondary)', lineHeight: 1.45 }}>
+                            {tender.intakeSuitabilitySummary}
+                          </p>
+                        )}
+                      </>
+                    ) : tender.intakeSuitabilityStatus === 'processing' ? (
+                      <p style={{ margin: 0, color: 'var(--muted)' }}>Bezig met beoordelen…</p>
+                    ) : tender.intakeSuitabilityStatus === 'failed' ? (
+                      <p style={{ margin: 0, color: 'var(--error, #DC2626)' }}>
+                        {tender.intakeSuitabilitySummary || 'Beoordeling mislukt. Controleer of OpenAI is geconfigureerd en probeer opnieuw.'}
+                      </p>
+                    ) : (
+                      <p style={{ margin: 0, color: 'var(--muted)' }}>
+                        Nog geen beoordeling. Automatische scores gelden voor de 20 nieuwste tenders (na import, nieuwe tender of openen TenderNed-lijst); daarbuiten wordt de automatische score gewist. Vul{' '}
+                        <Link href="/bedrijfsinformatie" style={{ color: 'var(--slate-blue)' }}>bedrijfsinformatie</Link>
+                        {' '}in en klik op &quot;Opnieuw beoordelen&quot; voor deze tender.
+                      </p>
+                    )}
+                  </div>
+                  <Button type="button" variant="secondary" size="sm" loading={intakeLoading} onClick={runIntakeSuitability}>
+                    Opnieuw beoordelen
+                  </Button>
+                </div>
+              </div>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
               {/* Go/No-Go */}
               <div style={{ display: 'flex', gap: 2 }}>
@@ -293,6 +367,9 @@ export default function TenderDetailClient({ tender: initialTender, documents: i
               {tab.id === 'sections' && sections.length > 0 && (
                 <span style={{ marginLeft: 6, background: approvedSections > 0 ? '#D1FAE5' : '#F3F4F6', borderRadius: 10, padding: '1px 6px', fontSize: 10, fontWeight: 700, color: approvedSections > 0 ? '#065F46' : 'var(--text-secondary)' }}>{approvedSections}/{sections.length}</span>
               )}
+              {tab.id === 'lessons' && lessonsLearned.length > 0 && (
+                <span style={{ marginLeft: 6, background: '#EDE9FE', borderRadius: 10, padding: '1px 6px', fontSize: 10, fontWeight: 700, color: '#5B21B6' }}>{lessonsLearned.length}</span>
+              )}
             </button>
             )
           })}
@@ -383,6 +460,14 @@ export default function TenderDetailClient({ tender: initialTender, documents: i
                   onSectionsChange={setSections}
                   documents={documents}
                   onTenderUpdate={(updates) => setTender((prev: any) => ({ ...prev, ...updates }))}
+                />
+              )}
+              {activeTab === 'lessons' && (
+                <LessonsLearnedTab
+                  tenderId={tender.id}
+                  documents={documents}
+                  lessons={lessonsLearned}
+                  onLessonsChange={setLessonsLearned}
                 />
               )}
               {activeTab === 'timeline' && (

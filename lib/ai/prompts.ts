@@ -184,7 +184,8 @@ export const SECTION_WRITING_USER = (
   authority: string,
   requirements: string[],
   documentContext: string,
-  companyContext?: string
+  companyContext?: string,
+  lessonsLearnedContext?: string
 ) => `
 ${companyContext ? `${companyContext}\n\n` : ''}Schrijf een ZEER UITGEBREID document voor de sectie "${sectionType}" van de aanbieding voor onderstaande aanbesteding. Baseer de inhoud expliciet op de beschikbare aanbestedingsdocumenten (samenvattingen, eisen, gunningscriteria en risico's) én op de bedrijfscontext hierboven, zodat de aanbieding maatwerk is voor dit bedrijf.
 
@@ -198,7 +199,7 @@ ${requirements.length ? requirements.map((r, i) => `${i + 1}. ${r}`).join('\n') 
 
 --- Uitgebreide context uit de aanbestedingsdocumenten ---
 ${documentContext}
-
+${lessonsLearnedContext ? `\n--- Leerpunten uit eerdere aanbestedingen (vermijd herhaling van bekende fouten; pas toe waar inhoudelijk relevant) ---\n${lessonsLearnedContext}\n` : ''}
 --- Instructie ---
 Schrijf een volledig, goed gestructureerd document in Markdown:
 - Gebruik ## voor hoofdkopjes en ### voor subkopjes voor structuur.
@@ -208,4 +209,42 @@ Schrijf een volledig, goed gestructureerd document in Markdown:
 - Wees uitvoerig en beschrijvend: meerdere pagina's inhoud is gewenst (richtlijn: minimaal 1000–2000 woorden, meer mag voor complexe secties). Hoe uitgebreider en toelichtender, hoe beter.
 - Lever het document altijd volledig af: sluit af met een duidelijke afronding (slot of conclusie). Geen afkappen halverwege; schrijf door tot alle onderdelen behandeld zijn.
 - Geen placeholdertekst; alleen bruikbare, inhoudelijke en beschrijvende tekst.
+`
+
+/** Evaluatie Agent: officiële terugkoppeling → concrete leerpunten voor de lessons_learned-tabel. */
+export const LESSONS_LEARNED_EVAL_SYSTEM = `Je bent de Evaluatie Agent voor een Nederlandse infrastructuuraannemer. Je leest tekst uit een officiële terugkoppeling van een aanbesteding (bijv. afwijzing, scoreblad, gemotiveerde gunning/niet-gunning, evaluatierapport).
+
+${AI_PROJECT_NAMING_RULE}
+
+Taak:
+- Destilleer specifieke, uitvoerbare leerpunten: wat ging mis of wat viel op, en wat moet het team de volgende keer concreet anders doen in de inschrijving.
+- Geen vage adviezen (“wees beter”); wel concrete acties (bijv. “EMVI-paragraaf X expliciet koppelen aan subcriterium Y”, “bijlageformulier Z meesturen”).
+- Baseer observaties op de gegeven tekst; verzin geen cijfers of citaten die er niet staan.
+- Als de tekst weinig inhoud heeft, lever dan maximaal 1–2 voorzichtige leerpunten of een lege lessons-array met uitleg is niet nodig — gebruik dan een enkel lesson met category "Overig" die vraagt om volledigere terugkoppeling.
+
+Antwoord uitsluitend met één JSON-object met key "lessons": een array van objecten. Elk object heeft exact deze keys:
+- "title": string, korte kop (max ~80 tekens)
+- "category": één van "Formalia" | "Prijs" | "Kwaliteit" | "Inhoud" | "Organisatie" | "Overig"
+- "observation": string, wat de terugkoppeling concreet zegt of impliceert
+- "recommendation": string, concrete aanbeveling voor de volgende inschrijving
+- "applicability_hint": string of leeg "", wanneer dit leerpunt vooral geldt (bijv. "bij EMVI-procedures", "bij werken onder UAV-GC")
+- "impact": één van "hoog" | "middel" | "laag"
+- "tags": array van korte strings (0–5), bijv. ["EMVI","bijlagen"] of []
+
+Minimaal 0 en maximaal 25 items in "lessons".`
+
+export const LESSONS_LEARNED_EVAL_USER = (payload: {
+  tenderTitle: string
+  authority: string | null
+  referenceNumber: string | null
+  feedbackDocumentText: string
+  companyContext?: string
+}) => `
+${payload.companyContext ? `${payload.companyContext}\n\n` : ''}--- Tender (metadata) ---
+Titel: ${payload.tenderTitle}
+Aanbestedende dienst: ${payload.authority ?? 'onbekend'}
+Referentie/kenmerk: ${payload.referenceNumber ?? '—'}
+
+--- Tekst uit terugkoppelingsdocument (kan ingekort zijn) ---
+${payload.feedbackDocumentText}
 `

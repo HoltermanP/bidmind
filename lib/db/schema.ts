@@ -2,7 +2,17 @@ import { pgTable, text, uuid, timestamp, decimal, integer, boolean, jsonb, pgEnu
 
 export const tenderStatusEnum = pgEnum('tender_status', ['new', 'qualifying', 'analyzing', 'writing', 'review', 'submitted', 'won', 'lost', 'withdrawn'])
 export const goNoGoEnum = pgEnum('go_no_go', ['pending', 'go', 'no_go'])
-export const documentTypeEnum = pgEnum('document_type', ['aankondiging', 'bestek', 'leidraad', 'tekening', 'nota_van_inlichtingen', 'eigen_upload', 'concept_aanbieding', 'definitief'])
+export const documentTypeEnum = pgEnum('document_type', [
+  'aankondiging',
+  'bestek',
+  'leidraad',
+  'tekening',
+  'nota_van_inlichtingen',
+  'eigen_upload',
+  'terugkoppeling',
+  'concept_aanbieding',
+  'definitief',
+])
 export const analysisStatusEnum = pgEnum('analysis_status', ['pending', 'processing', 'done', 'failed'])
 export const questionPriorityEnum = pgEnum('question_priority', ['critical', 'high', 'medium', 'low'])
 export const questionStatusEnum = pgEnum('question_status', ['draft', 'approved', 'submitted', 'answered', 'rejected'])
@@ -11,6 +21,8 @@ export const sectionStatusEnum = pgEnum('section_status', ['empty', 'draft', 'in
 export const noteTypeEnum = pgEnum('note_type', ['internal', 'decision', 'risk', 'milestone'])
 export const userRoleEnum = pgEnum('user_role', ['admin', 'tender_manager', 'team_member'])
 export const companyDocumentTypeEnum = pgEnum('company_document_type', ['vision', 'year_plan', 'other'])
+/** Intake-agent: geschiktheid van de tender t.o.v. het bedrijf (laag / middel / hoog) */
+export const tenderIntakeSuitabilityTierEnum = pgEnum('tender_intake_suitability_tier', ['low', 'medium', 'high'])
 
 export const users = pgTable('users', {
   id: text('id').primaryKey(),
@@ -41,7 +53,15 @@ export const tenders = pgTable('tenders', {
   teamMemberIds: text('team_member_ids').array().default([]),
   tendernetUrl: text('tendernet_url'),
   tendernedPublicatieId: text('tenderned_publicatie_id'),
+  /** Korte omschrijving uit TenderNed (opdrachtBeschrijving); gebruikt door intake-geschiktheid */
+  tenderDescription: text('tender_description'),
   goNoGoReasoning: text('go_no_go_reasoning'),
+  /** Intake-agent: geschiktheid t.o.v. bedrijfsprofiel; auto na import alleen voor de N nieuwste tenders (zie lib/tenders/intake-suitability) */
+  intakeSuitabilityTier: tenderIntakeSuitabilityTierEnum('intake_suitability_tier'),
+  intakeSuitabilityScore: integer('intake_suitability_score'),
+  intakeSuitabilitySummary: text('intake_suitability_summary'),
+  intakeSuitabilityStatus: analysisStatusEnum('intake_suitability_status').default('pending'),
+  intakeSuitabilityGeneratedAt: timestamp('intake_suitability_generated_at'),
   /** Uitgebreide tenderanalyse (Analyse Agent): semantische HTML, veilig gesanitized */
   analysisReportHtml: text('analysis_report_html'),
   analysisReportStatus: analysisStatusEnum('analysis_report_status').default('pending'),
@@ -133,6 +153,31 @@ export const tenderActivities = pgTable('tender_activities', {
   tenderIdx: index('activities_tender_idx').on(table.tenderId),
   createdIdx: index('activities_created_idx').on(table.createdAt),
 }))
+
+/** Leerpunten uit aanbestedingsterugkoppeling (Evaluatie Agent); herbruikbaar bij nieuwe inschrijvingen. */
+export const lessonsLearned = pgTable(
+  'lessons_learned',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    tenderId: uuid('tender_id')
+      .references(() => tenders.id, { onDelete: 'cascade' })
+      .notNull(),
+    sourceDocumentId: uuid('source_document_id').references(() => tenderDocuments.id, { onDelete: 'set null' }),
+    title: text('title').notNull(),
+    category: text('category').notNull(),
+    observation: text('observation').notNull(),
+    recommendation: text('recommendation').notNull(),
+    applicabilityHint: text('applicability_hint'),
+    impact: text('impact'),
+    tags: text('tags').array(),
+    createdBy: text('created_by'),
+    createdAt: timestamp('created_at').defaultNow(),
+  },
+  (table) => ({
+    tenderIdx: index('lessons_learned_tender_idx').on(table.tenderId),
+    createdIdx: index('lessons_learned_created_idx').on(table.createdAt),
+  })
+)
 
 export const tenderNotes = pgTable('tender_notes', {
   id: uuid('id').primaryKey().defaultRandom(),

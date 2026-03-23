@@ -22,6 +22,7 @@ export const TENDER_DETAIL_TAB_IDS = [
   'analysis',
   'questions',
   'sections',
+  'lessons',
   'timeline',
   'handover',
 ] as const
@@ -35,6 +36,7 @@ export const TENDER_DETAIL_TAB_LABELS: Record<TenderDetailTabId, string> = {
   analysis: 'Tenderanalyse',
   questions: 'NVI Vragen',
   sections: 'Aanbieding',
+  lessons: 'Leerpunten',
   timeline: 'Tijdlijn',
 }
 
@@ -50,7 +52,7 @@ export const PIPELINE_STAGE_TO_TAB: Record<PipelineStageId, TenderDetailTabId> =
   review: 'sections',
   submitted: 'timeline',
   won: 'handover',
-  lost: 'timeline',
+  lost: 'lessons',
 }
 
 export const PIPELINE_WITHDRAWN_TAB: TenderDetailTabId = 'overview'
@@ -71,7 +73,8 @@ export const TENDER_TAB_PIPELINE_HINT: Record<TenderDetailTabId, string> = {
   analysis: 'Past bij pipeline: Analyse',
   questions: 'NVI-vragen (handmatig; geen vaste pipeline-stap)',
   sections: 'Past bij pipeline: Schrijven en Review',
-  timeline: 'Past bij pipeline: Ingediend en Verloren',
+  lessons: 'Evaluatie Agent: leerpunten uit terugkoppeling; gebruikt door de Schrijf Agent bij nieuwe aanbiedingen.',
+  timeline: 'Past bij pipeline: Ingediend',
 }
 
 export const PIPELINE_AGENT_LABELS: Record<PipelineStageId, string> = {

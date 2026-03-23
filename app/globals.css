@@ -1285,6 +1285,19 @@ input, textarea, select {
   }
 
   /* TenderNed-import: tabel als gestapelde kaarten */
+  .tenderned-import-scroll {
+    overflow-x: hidden !important;
+  }
+
+  .tenderned-import-table {
+    min-width: 0 !important;
+    table-layout: auto !important;
+  }
+
+  .tenderned-import-table colgroup {
+    display: none;
+  }
+
   .tenderned-import-table thead {
     display: none;
   }
@@ -1302,6 +1315,7 @@ input, textarea, select {
     display: block;
     padding: 6px 0 !important;
     border: none !important;
+    text-align: left !important;
   }
 
   .tenderned-import-table tbody td[data-label]::before {
@@ -1313,6 +1327,12 @@ input, textarea, select {
     text-transform: uppercase;
     letter-spacing: 0.06em;
     margin-bottom: 4px;
+  }
+
+  .tenderned-import-action-cell button {
+    width: 100%;
+    justify-content: center;
+    box-sizing: border-box;
   }
 
 }

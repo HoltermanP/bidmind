@@ -5,14 +5,16 @@ import { fetchPublicaties, mapPublicatieToTender } from '@/lib/tenderned/client'
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
 
-const MAX_ALL_ITEMS = 2000
-const PAGE_SIZE = 50
+const DEFAULT_MAX_ITEMS = 100
+const MAX_ITEMS_CAP = 200
+const MAX_ITEMS_PAGES = 25
 
 /**
  * GET /api/tenderned/publicaties
  * Haalt aankondigingen/aanbestedingen op van TenderNed (open data TNS v2).
  * Alleen voor ingelogde gebruikers.
- * Query: page (default 0), size (default 20). Of all=true om alle pagina's op te halen (max MAX_ALL_ITEMS).
+ * Query: page (default 0), size (1–50, default 20).
+ * Of: maxItems (1–200, default 100) — nieuwste eerst, meerdere TenderNed-pagina’s achter elkaar in één response.
  */
 export async function GET(request: NextRequest) {
   try {
@@ -20,32 +22,41 @@ export async function GET(request: NextRequest) {
     if (!userId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
     const { searchParams } = new URL(request.url)
-    const fetchAll = searchParams.get('all') === 'true'
+    const maxItemsRaw = searchParams.get('maxItems')
 
-    if (fetchAll) {
-      const allContent: Awaited<ReturnType<typeof mapPublicatieToTender>>[] = []
-      let page = 0
-      let totalElements = 0
-      let totalPages = 1
-      while (true) {
-        const data = await fetchPublicaties({ page, size: PAGE_SIZE })
+    if (maxItemsRaw != null) {
+      const maxItems = Math.min(
+        MAX_ITEMS_CAP,
+        Math.max(1, parseInt(maxItemsRaw, 10) || DEFAULT_MAX_ITEMS)
+      )
+      const pageSize = 50
+      const merged: ReturnType<typeof mapPublicatieToTender>[] = []
+      let lastTotalElements = 0
+      let lastTotalPages = 1
+
+      for (let p = 0; p < MAX_ITEMS_PAGES && merged.length < maxItems; p++) {
+        const data = await fetchPublicaties({ page: p, size: pageSize })
+        lastTotalElements = data.totalElements
+        lastTotalPages = data.totalPages
         const mapped = data.content.map(mapPublicatieToTender)
-        allContent.push(...mapped)
-        totalElements = data.totalElements
-        totalPages = data.totalPages
-        if (data.last || allContent.length >= totalElements || allContent.length >= MAX_ALL_ITEMS) break
-        page += 1
+        for (const item of mapped) {
+          merged.push(item)
+          if (merged.length >= maxItems) break
+        }
+        if (data.last || data.content.length < pageSize) break
       }
-      const capped = allContent.slice(0, MAX_ALL_ITEMS)
+
+      const slice = merged.slice(0, maxItems)
       return NextResponse.json({
-        content: capped,
+        content: slice,
         first: true,
         last: true,
-        totalElements: capped.length,
-        totalPages: 1,
-        size: capped.length,
-        numberOfElements: capped.length,
+        totalElements: lastTotalElements,
+        totalPages: lastTotalPages,
+        size: slice.length,
+        numberOfElements: slice.length,
         number: 0,
+        maxItems,
       })
     }
 

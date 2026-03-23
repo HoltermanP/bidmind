@@ -16,6 +16,8 @@ export type AgentId =
   | 'handover_report'
   | 'section_writing'
   | 'question_generation'
+  | 'intake_suitability'
+  | 'lessons_learned'
 
 export interface AgentConfig {
   platform: AIPlatform
@@ -32,6 +34,8 @@ export interface AgentConfig {
  * - handover_report: implementatieplan + presentatie na gunning → Claude
  * - section_writing: zware schrijftaak → Claude (sterke schrijfkwaliteit)
  * - question_generation: gestructureerde output uit samenvattingen → OpenAI goedkoper model volstaat
+ * - intake_suitability: snelle JSON-score geschiktheid tender vs. bedrijf → OpenAI (goedkoop, voldoende)
+ * - lessons_learned: terugkoppeling → gestructureerde leerpunten voor volgende inschrijvingen → Claude
  */
 export const AGENT_CONFIG: Record<AgentId, AgentConfig> = {
   document_analysis: {
@@ -64,6 +68,17 @@ export const AGENT_CONFIG: Record<AgentId, AgentConfig> = {
     platform: 'openai',
     model: 'gpt-4o-mini',
     maxTokens: 2000,
+  },
+  intake_suitability: {
+    platform: 'openai',
+    model: 'gpt-4o-mini',
+    /** Kort JSON-antwoord; lagere limiet = iets minder outputkosten */
+    maxTokens: 512,
+  },
+  lessons_learned: {
+    platform: 'anthropic',
+    model: 'claude-sonnet-4-20250514',
+    maxTokens: 8192,
   },
 }
 

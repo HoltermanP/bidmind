@@ -32,6 +32,7 @@ const DOC_TYPES = [
   { value: 'tekening', label: 'Tekening' },
   { value: 'nota_van_inlichtingen', label: 'Nota van Inlichtingen' },
   { value: 'eigen_upload', label: 'Eigen upload' },
+  { value: 'terugkoppeling', label: 'Terugkoppeling (evaluatie)' },
   { value: 'concept_aanbieding', label: 'Concept aanbieding' },
   { value: 'definitief', label: 'Definitief' },
 ]
@@ -43,6 +44,7 @@ export default function DocumentsTab({ tender, documents, onDocumentsChange, use
   const [selectedDoc, setSelectedDoc] = useState<Document | null>(null)
   const [uploading, setUploading] = useState(false)
   const [dragOver, setDragOver] = useState(false)
+  const [uploadDocumentType, setUploadDocumentType] = useState<string>('eigen_upload')
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   const handleFileUpload = async (files: FileList | null) => {
@@ -54,6 +56,7 @@ export default function DocumentsTab({ tender, documents, onDocumentsChange, use
         const formData = new FormData()
         formData.append('file', file)
         formData.append('tenderId', tender.id)
+        formData.append('documentType', uploadDocumentType)
 
         const res = await fetch(`/api/tenders/${tender.id}/documents/upload`, {
           method: 'POST',
@@ -202,6 +205,29 @@ export default function DocumentsTab({ tender, documents, onDocumentsChange, use
       {/* Left: Document list */}
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 16, minWidth: 0 }}>
         {/* Upload zone */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 4 }}>
+          <label style={{ fontSize: 11, fontWeight: 600, color: 'var(--muted)' }}>Type bij upload</label>
+          <select
+            value={uploadDocumentType}
+            onChange={(e) => setUploadDocumentType(e.target.value)}
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              padding: '8px 10px',
+              borderRadius: 4,
+              border: '1px solid var(--border)',
+              fontSize: 12,
+              fontFamily: 'IBM Plex Sans, sans-serif',
+              background: 'white',
+              maxWidth: 320,
+            }}
+          >
+            {DOC_TYPES.map((t) => (
+              <option key={t.value} value={t.value}>
+                {t.label}
+              </option>
+            ))}
+          </select>
+        </div>
         <div
           onDragOver={(e) => { e.preventDefault(); setDragOver(true) }}
           onDragLeave={() => setDragOver(false)}

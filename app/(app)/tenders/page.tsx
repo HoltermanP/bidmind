@@ -40,6 +40,27 @@ async function getTenders(searchParams: Record<string, string>) {
     filtered = filtered.filter((t) => t.tenderManagerId === searchParams.manager)
   }
 
+  const INTAKE_SCORE_HIGH_MIN = 70
+  const g = searchParams.geschiktheid
+  if (g && g !== 'all') {
+    if (g === 'none') {
+      filtered = filtered.filter((t) =>
+        t.intakeSuitabilityStatus === 'pending' ||
+        t.intakeSuitabilityStatus === 'processing' ||
+        t.intakeSuitabilityStatus === 'failed'
+      )
+    } else if (g === 'low' || g === 'medium' || g === 'high') {
+      filtered = filtered.filter((t) => t.intakeSuitabilityTier === g)
+    } else if (g === 'minscore70') {
+      filtered = filtered.filter(
+        (t) =>
+          t.intakeSuitabilityStatus === 'done' &&
+          t.intakeSuitabilityScore != null &&
+          t.intakeSuitabilityScore >= INTAKE_SCORE_HIGH_MIN
+      )
+    }
+  }
+
   return { tenders: filtered, userMap, allUsers }
 }
 

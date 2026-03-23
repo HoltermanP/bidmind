@@ -17,6 +17,22 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     const { id } = await params
     const formData = await request.formData()
     const file = formData.get('file') as File | null
+    const rawType = formData.get('documentType')
+    const allowedTypes = [
+      'aankondiging',
+      'bestek',
+      'leidraad',
+      'tekening',
+      'nota_van_inlichtingen',
+      'eigen_upload',
+      'terugkoppeling',
+      'concept_aanbieding',
+      'definitief',
+    ] as const
+    const docType =
+      typeof rawType === 'string' && (allowedTypes as readonly string[]).includes(rawType)
+        ? (rawType as (typeof allowedTypes)[number])
+        : 'eigen_upload'
 
     if (!file) {
       return NextResponse.json({ error: 'No file provided' }, { status: 400 })
@@ -29,7 +45,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
         fileName: file.name,
         fileUrl: '',
         fileSize: file.size,
-        documentType: 'eigen_upload',
+        documentType: docType,
         analysisStatus: 'pending',
         uploadedBy: userId,
       })

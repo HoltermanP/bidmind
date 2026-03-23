@@ -90,3 +90,16 @@ export const GO_NO_GO_LABELS: Record<string, string> = {
   go: 'Go',
   no_go: 'No Go',
 }
+
+/** Intake-agent: geschiktheid tender t.o.v. bedrijf */
+export const SUITABILITY_TIER_LABELS: Record<string, string> = {
+  low: 'Laag',
+  medium: 'Middel',
+  high: 'Hoog',
+}
+
+export const SUITABILITY_TIER_COLORS: Record<string, { bg: string; text: string }> = {
+  low: { bg: '#F3F4F6', text: '#4B5563' },
+  medium: { bg: '#FEF9C3', text: '#854D0E' },
+  high: { bg: '#D1FAE5', text: '#065F46' },
+}

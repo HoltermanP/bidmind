@@ -16,6 +16,41 @@ export async function PATCH(
 
     const { id, docId } = await params
     const body = await request.json().catch(() => ({}))
+
+    const allowedTypes = [
+      'aankondiging',
+      'bestek',
+      'leidraad',
+      'tekening',
+      'nota_van_inlichtingen',
+      'eigen_upload',
+      'terugkoppeling',
+      'concept_aanbieding',
+      'definitief',
+    ] as const
+
+    if (typeof body.documentType === 'string' && (allowedTypes as readonly string[]).includes(body.documentType)) {
+      const [doc] = await db.select().from(tenderDocuments).where(eq(tenderDocuments.id, docId))
+      if (!doc) return NextResponse.json({ error: 'Document niet gevonden' }, { status: 404 })
+      if (doc.tenderId !== id) return NextResponse.json({ error: 'Document hoort niet bij deze tender' }, { status: 400 })
+
+      const [updated] = await db
+        .update(tenderDocuments)
+        .set({ documentType: body.documentType as (typeof allowedTypes)[number] })
+        .where(eq(tenderDocuments.id, docId))
+        .returning()
+
+      await db.insert(tenderActivities).values({
+        tenderId: id,
+        userId,
+        activityType: 'document_type_updated',
+        description: `Documenttype gewijzigd: ${doc.fileName ?? docId}`,
+        metadata: { docId, documentType: body.documentType },
+      })
+
+      return NextResponse.json(updated)
+    }
+
     if (body.clearAnalysis !== true) {
       return NextResponse.json({ error: 'Ongeldig verzoek' }, { status: 400 })
     }

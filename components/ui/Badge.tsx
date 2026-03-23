@@ -1,8 +1,8 @@
 import React from 'react'
-import { STATUS_LABELS, STATUS_COLORS, GO_NO_GO_LABELS } from '@/lib/utils/format'
+import { STATUS_LABELS, STATUS_COLORS, GO_NO_GO_LABELS, SUITABILITY_TIER_LABELS, SUITABILITY_TIER_COLORS } from '@/lib/utils/format'
 
 interface BadgeProps {
-  variant?: 'status' | 'gonogo' | 'priority' | 'document' | 'custom'
+  variant?: 'status' | 'gonogo' | 'priority' | 'document' | 'suitability' | 'custom'
   value?: string
   label?: string
   color?: string
@@ -37,6 +37,7 @@ const DOCUMENT_TYPE_LABELS: Record<string, string> = {
   tekening: 'Tekening',
   nota_van_inlichtingen: 'NVI',
   eigen_upload: 'Upload',
+  terugkoppeling: 'Terugkoppeling',
   concept_aanbieding: 'Concept',
   definitief: 'Definitief',
 }
@@ -60,6 +61,10 @@ export default function Badge({ variant = 'custom', value = '', label, color, bg
     bgColor = PRIORITY_COLORS[value]?.bg || bgColor
   } else if (variant === 'document' && value) {
     displayLabel = DOCUMENT_TYPE_LABELS[value] || value
+  } else if (variant === 'suitability' && value) {
+    displayLabel = SUITABILITY_TIER_LABELS[value] || value
+    textColor = SUITABILITY_TIER_COLORS[value]?.text || textColor
+    bgColor = SUITABILITY_TIER_COLORS[value]?.bg || bgColor
   }
 
   return (

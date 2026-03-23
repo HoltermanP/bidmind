@@ -26,6 +26,23 @@ export interface TenderNedItem {
   documentCount?: number | null
 }
 
+/** Intake-geschiktheid voor een TenderNed-rij als die publicatie al als tender in BidMind staat. */
+export interface TenderNedIntakeLookup {
+  tenderId: string
+  intakeSuitabilityStatus: string | null
+  intakeSuitabilityScore: number | null
+  intakeSuitabilityTier: string | null
+}
+
+/** Sluitingsdatum/tijd voorbij (zelfde idee als server: geen import). Zonder betrouwbare datum: niet verlopen. */
+function isTenderNedListItemExpired(item: Pick<TenderNedItem, 'deadlineSubmission'>): boolean {
+  const raw = item.deadlineSubmission
+  if (raw == null || !String(raw).trim()) return false
+  const t = new Date(raw).getTime()
+  if (Number.isNaN(t)) return false
+  return t < Date.now()
+}
+
 interface Tender {
   id: string
   title: string | null
@@ -39,8 +56,13 @@ interface Tender {
   winProbability: number | null
   tenderManagerId: string | null
   teamMemberIds: string[] | null
+  tendernedPublicatieId?: string | null
   createdAt: Date | null
   updatedAt: Date | null
+  intakeSuitabilityTier: string | null
+  intakeSuitabilityScore: number | null
+  intakeSuitabilityStatus: string | null
+  intakeSuitabilitySummary?: string | null
 }
 
 interface User {
@@ -74,6 +96,7 @@ export default function TendersClient({ initialTenders, userMap, allUsers, initi
   const [search, setSearch] = useState(initialSearchParams.q || '')
   const [statusFilter, setStatusFilter] = useState(initialSearchParams.status || 'all')
   const [goNoGoFilter, setGoNoGoFilter] = useState(initialSearchParams.gonogo || 'all')
+  const [geschiktheidFilter, setGeschiktheidFilter] = useState(initialSearchParams.geschiktheid || 'all')
   const [sortBy, setSortBy] = useState<'deadline' | 'updated' | 'value'>('updated')
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc')
   const [showCreatePanel, setShowCreatePanel] = useState(false)
@@ -83,6 +106,8 @@ export default function TendersClient({ initialTenders, userMap, allUsers, initi
     totalElements: number
   } | null>(null)
   const [tenderNedLoading, setTenderNedLoading] = useState(false)
+  /** Voortgang bij paginering (geen enkele lange `all=true`-request → minder 502/time-outs). */
+  const [tenderNedFetchHint, setTenderNedFetchHint] = useState<string | null>(null)
   const [importingId, setImportingId] = useState<string | null>(null)
   const [tenderNedSearch, setTenderNedSearch] = useState('')
   const [tenderNedProcedureFilter, setTenderNedProcedureFilter] = useState<string>('all')
@@ -92,6 +117,9 @@ export default function TendersClient({ initialTenders, userMap, allUsers, initi
   const TENDER_NED_PAGE_SIZE = 20
   const [tenderNedDocCounts, setTenderNedDocCounts] = useState<Record<string, number | null>>({})
   const [tenderNedDocCountsLoading, setTenderNedDocCountsLoading] = useState(false)
+  const [tenderNedIntakeByPubId, setTenderNedIntakeByPubId] = useState<Record<string, TenderNedIntakeLookup | null>>({})
+  const [tenderNedBulkSyncing, setTenderNedBulkSyncing] = useState(false)
+  const [tenderNedBulkSyncLabel, setTenderNedBulkSyncLabel] = useState<string | null>(null)
   const [deletingId, setDeletingId] = useState<string | null>(null)
   const [isMobile, setIsMobile] = useState(false)
   const router = useRouter()
@@ -126,27 +154,83 @@ export default function TendersClient({ initialTenders, userMap, allUsers, initi
 
   const loadTenderNed = useCallback(async () => {
     setTenderNedDocCounts({})
+    setTenderNedIntakeByPubId({})
     setTenderNedLoading(true)
+    setTenderNedFetchHint('100 nieuwste aankondigingen ophalen…')
     try {
-      const res = await fetch('/api/tenderned/publicaties?all=true')
+      const res = await fetch('/api/tenderned/publicaties?maxItems=100')
       if (!res.ok) {
         const body = await res.json().catch(() => ({}))
         const msg = body?.error || res.statusText || 'Ophalen mislukt'
         throw new Error(msg)
       }
       const data = await res.json()
+      const content = Array.isArray(data.content) ? data.content : []
       setTenderNedData({
-        content: data.content,
-        totalElements: data.totalElements,
+        content,
+        totalElements: typeof data.totalElements === 'number' ? data.totalElements : content.length,
       })
       setTenderNedViewPage(0)
+      void fetch('/api/tenders/intake-reconcile', { method: 'POST' })
     } catch (err) {
       const message = err instanceof Error ? err.message : 'TenderNed aankondigingen konden niet worden opgehaald'
       toast(message, 'error')
     } finally {
       setTenderNedLoading(false)
+      setTenderNedFetchHint(null)
     }
   }, [toast])
+
+  const tenderIdByTendernedPubId = useMemo(() => {
+    const m = new Map<string, string>()
+    for (const t of initialTenders) {
+      const pid = t.tendernedPublicatieId?.trim()
+      if (pid) m.set(pid, t.id)
+    }
+    return m
+  }, [initialTenders])
+
+  const syncMissingFromTenderNed = useCallback(async () => {
+    setTenderNedBulkSyncing(true)
+    setTenderNedBulkSyncLabel('Synchroniseren met TenderNed…')
+    try {
+      const res = await fetch('/api/tenderned/sync', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({}),
+      })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) {
+        throw new Error(typeof data?.error === 'string' ? data.error : 'Synchronisatie mislukt')
+      }
+      const total = typeof data.imported === 'number' ? data.imported : 0
+      const reason = typeof data.reason === 'string' ? data.reason : ''
+      const mode = data.mode === 'initial' ? 'initial' : 'incremental'
+
+      if (total === 0 && reason === 'reached_known') {
+        toast('Geen nieuwere TenderNed-aankondigingen; je database was al bij.', 'info')
+      } else if (total === 0) {
+        toast('Er zijn geen nieuwe tenders geïmporteerd (alle relevante aankondigingen stonden al in BidMind of zijn verlopen).', 'info')
+      } else if (mode === 'initial' && reason === 'cap_100') {
+        toast(
+          `${total} nieuwste tender${total !== 1 ? 's' : ''} geïmporteerd (eerste keer: maximaal 100). Voer later opnieuw sync uit voor nieuwere publicaties.`,
+          'success'
+        )
+      } else {
+        toast(`${total} nieuwe tender${total !== 1 ? 's' : ''} van TenderNed geïmporteerd.`, 'success')
+      }
+
+      void fetch('/api/tenders/intake-reconcile', { method: 'POST' })
+      router.refresh()
+      setTenderNedData(null)
+      await loadTenderNed()
+    } catch (e) {
+      toast(e instanceof Error ? e.message : 'Synchronisatie mislukt', 'error')
+    } finally {
+      setTenderNedBulkSyncing(false)
+      setTenderNedBulkSyncLabel(null)
+    }
+  }, [toast, router, loadTenderNed])
 
   const openTenderNed = useCallback(() => {
     setShowTenderNedPanel(true)
@@ -245,17 +329,29 @@ export default function TendersClient({ initialTenders, userMap, allUsers, initi
           throw new Error(body?.error ?? 'Documenten tellen mislukt')
         }
         const data = await res.json()
+        if (ac.signal.aborted) return
         const counts = data?.counts as Record<string, number | null> | undefined
-        if (!counts || ac.signal.aborted) return
-        setTenderNedDocCounts((prev) => {
-          const next = { ...prev }
-          for (const id of ids) {
-            if (Object.prototype.hasOwnProperty.call(counts, id)) {
-              next[id] = counts[id] ?? null
+        const intake = data?.intake as Record<string, TenderNedIntakeLookup | null> | undefined
+        if (counts) {
+          setTenderNedDocCounts((prev) => {
+            const next = { ...prev }
+            for (const id of ids) {
+              if (Object.prototype.hasOwnProperty.call(counts, id)) {
+                next[id] = counts[id] ?? null
+              }
             }
-          }
-          return next
-        })
+            return next
+          })
+        }
+        if (intake) {
+          setTenderNedIntakeByPubId((prev) => {
+            const next = { ...prev }
+            for (const id of ids) {
+              next[id] = intake[id] ?? null
+            }
+            return next
+          })
+        }
       } catch (e) {
         if (e instanceof Error && e.name === 'AbortError') return
         if (!ac.signal.aborted) {
@@ -263,6 +359,13 @@ export default function TendersClient({ initialTenders, userMap, allUsers, initi
             const next = { ...prev }
             for (const id of ids) {
               if (next[id] === undefined) next[id] = null
+            }
+            return next
+          })
+          setTenderNedIntakeByPubId((prev) => {
+            const next = { ...prev }
+            for (const id of ids) {
+              next[id] = null
             }
             return next
           })
@@ -282,14 +385,19 @@ export default function TendersClient({ initialTenders, userMap, allUsers, initi
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ publicatieId: item.publicatieId }),
       })
+      const data = await res.json().catch(() => ({}))
       if (!res.ok) {
-        const data = await res.json().catch(() => ({}))
-        throw new Error(data?.error ?? 'Import mislukt')
+        throw new Error(typeof data?.error === 'string' ? data.error : 'Import mislukt')
       }
-      const created = await res.json()
+      if (data.alreadyExisted && data.id) {
+        toast('Deze aankondiging stond al als tender in BidMind.', 'info')
+        setShowTenderNedPanel(false)
+        router.push(`/tenders/${data.id}`)
+        return
+      }
       toast('Tender en documenten uit TenderNed geïmporteerd', 'success')
       setShowTenderNedPanel(false)
-      router.push(`/tenders/${created.id}`)
+      router.push(`/tenders/${data.id}`)
     } catch (e) {
       toast(e instanceof Error ? e.message : 'Tender toevoegen mislukt', 'error')
     } finally {
@@ -318,6 +426,27 @@ export default function TendersClient({ initialTenders, userMap, allUsers, initi
       list = list.filter((t) => t.goNoGo === goNoGoFilter)
     }
 
+    const INTAKE_SCORE_HIGH_MIN = 70
+    if (geschiktheidFilter !== 'all') {
+      if (geschiktheidFilter === 'none') {
+        list = list.filter(
+          (t) =>
+            t.intakeSuitabilityStatus === 'pending' ||
+            t.intakeSuitabilityStatus === 'processing' ||
+            t.intakeSuitabilityStatus === 'failed'
+        )
+      } else if (geschiktheidFilter === 'low' || geschiktheidFilter === 'medium' || geschiktheidFilter === 'high') {
+        list = list.filter((t) => t.intakeSuitabilityTier === geschiktheidFilter)
+      } else if (geschiktheidFilter === 'minscore70') {
+        list = list.filter(
+          (t) =>
+            t.intakeSuitabilityStatus === 'done' &&
+            t.intakeSuitabilityScore != null &&
+            t.intakeSuitabilityScore >= INTAKE_SCORE_HIGH_MIN
+        )
+      }
+    }
+
     list.sort((a, b) => {
       let av: number = 0
       let bv: number = 0
@@ -337,7 +466,7 @@ export default function TendersClient({ initialTenders, userMap, allUsers, initi
     })
 
     return list
-  }, [initialTenders, search, statusFilter, goNoGoFilter, sortBy, sortDir])
+  }, [initialTenders, search, statusFilter, goNoGoFilter, geschiktheidFilter, sortBy, sortDir])
 
   const toggleSort = (col: 'deadline' | 'updated' | 'value') => {
     if (sortBy === col) setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'))
@@ -350,6 +479,78 @@ export default function TendersClient({ initialTenders, userMap, allUsers, initi
       setTenderNedSortBy(col)
       setTenderNedSortDir(col === 'deadline' ? 'asc' : 'asc')
     }
+  }
+
+  const renderTenderNedGeschiktheidCell = (publicatieId: string) => {
+    if (tenderNedDocCountsLoading) {
+      return <span style={{ color: 'var(--muted)' }}>…</span>
+    }
+    const info = tenderNedIntakeByPubId[publicatieId]
+    if (info == null) {
+      return (
+        <span style={{ fontSize: 12, color: 'var(--muted)' }} title="Nog niet als tender in BidMind geïmporteerd">
+          —
+        </span>
+      )
+    }
+    const score = info.intakeSuitabilityScore
+    if (info.intakeSuitabilityStatus === 'done') {
+      return (
+        <Link
+          href={`/tenders/${info.tenderId}`}
+          onClick={(e) => e.stopPropagation()}
+          style={{
+            textDecoration: 'none',
+            color: 'inherit',
+            display: 'inline-flex',
+            flexDirection: 'column',
+            alignItems: 'flex-start',
+            gap: 4,
+          }}
+        >
+          {score != null && (
+            <span
+              style={{
+                fontSize: 13,
+                fontWeight: 700,
+                fontFamily: 'IBM Plex Mono, monospace',
+                color:
+                  info.intakeSuitabilityTier === 'high'
+                    ? '#059669'
+                    : info.intakeSuitabilityTier === 'medium'
+                      ? 'var(--text-secondary)'
+                      : info.intakeSuitabilityTier === 'low'
+                        ? 'var(--muted)'
+                        : 'var(--text-secondary)',
+              }}
+            >
+              {score}
+              <span style={{ fontSize: 10, fontWeight: 500, opacity: 0.75 }}>/100</span>
+            </span>
+          )}
+          {info.intakeSuitabilityTier ? (
+            <Badge variant="suitability" value={info.intakeSuitabilityTier} />
+          ) : (
+            <span style={{ fontSize: 11, color: 'var(--muted)' }}>Bekijk tender</span>
+          )}
+        </Link>
+      )
+    }
+    if (info.intakeSuitabilityStatus === 'processing') {
+      return <span style={{ fontSize: 11, color: 'var(--muted)' }}>Bezig…</span>
+    }
+    if (info.intakeSuitabilityStatus === 'failed') {
+      return <span style={{ fontSize: 11, color: 'var(--error, #DC2626)' }}>Mislukt</span>
+    }
+    return (
+      <Link
+        href={`/tenders/${info.tenderId}`}
+        onClick={(e) => e.stopPropagation()}
+        style={{ fontSize: 11, color: 'var(--muted)', textDecoration: 'none' }}
+      >
+        Nog geen score → tender
+      </Link>
+    )
   }
 
   return (
@@ -371,7 +572,7 @@ export default function TendersClient({ initialTenders, userMap, allUsers, initi
           </h1>
           <p style={{ color: 'var(--text-secondary)', fontSize: 13 }}>
             {filtered.length} tender{filtered.length !== 1 ? 's' : ''}
-            {statusFilter !== 'all' || goNoGoFilter !== 'all' || search ? ' (gefilterd)' : ''}
+            {statusFilter !== 'all' || goNoGoFilter !== 'all' || geschiktheidFilter !== 'all' || search ? ' (gefilterd)' : ''}
           </p>
         </div>
         <div style={{ display: 'flex', gap: 10, width: isMobile ? '100%' : 'auto' }}>
@@ -403,7 +604,8 @@ export default function TendersClient({ initialTenders, userMap, allUsers, initi
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
-            padding: 24,
+            padding: '16px min(24px, 3vw)',
+            overflow: 'auto',
           }}
           onClick={() => setShowTenderNedPanel(false)}
         >
@@ -412,13 +614,14 @@ export default function TendersClient({ initialTenders, userMap, allUsers, initi
               background: 'white',
               border: '1px solid var(--border)',
               borderRadius: 8,
-              maxWidth: 900,
+              maxWidth: 'min(1240px, calc(100vw - 32px))',
               width: '100%',
-              maxHeight: '85vh',
+              maxHeight: 'min(90vh, calc(100dvh - 32px))',
               overflow: 'hidden',
               display: 'flex',
               flexDirection: 'column',
               boxShadow: '0 20px 40px rgba(0,0,0,0.15)',
+              margin: 'auto',
             }}
             onClick={(e) => e.stopPropagation()}
           >
@@ -428,7 +631,8 @@ export default function TendersClient({ initialTenders, userMap, allUsers, initi
                   Aankondigingen van TenderNed
                 </h2>
                 <p style={{ fontSize: 12, color: 'var(--text-secondary)', marginTop: 2 }}>
-                  Kies een aankondiging om als tender in BidMind toe te voegen. Data: <a href="https://www.tenderned.nl" target="_blank" rel="noopener noreferrer" style={{ color: 'var(--slate-blue)' }}>tenderned.nl</a>
+                  De lijst toont de 100 nieuwste aankondigingen. Synchroniseren: eerste keer maximaal 100 nieuwe tenders in BidMind; daarna alleen publicaties die nieuwer zijn dan wat je al hebt. Verlopen aankondigingen worden overgeslagen. Data:{' '}
+                  <a href="https://www.tenderned.nl" target="_blank" rel="noopener noreferrer" style={{ color: 'var(--slate-blue)' }}>tenderned.nl</a>
                 </p>
               </div>
               <button
@@ -441,10 +645,31 @@ export default function TendersClient({ initialTenders, userMap, allUsers, initi
             </div>
             <div style={{ flex: 1, overflow: 'auto', padding: 20 }}>
               {tenderNedLoading ? (
-                <div style={{ padding: 48, textAlign: 'center', color: 'var(--text-secondary)' }}>Alle aankondigingen ophalen…</div>
+                <div style={{ padding: 48, textAlign: 'center', color: 'var(--text-secondary)' }}>
+                  {tenderNedFetchHint ?? 'Aankondigingen ophalen…'}
+                </div>
               ) : tenderNedData ? (
                 <>
                   <div style={{ display: 'flex', gap: 10, marginBottom: 16, flexWrap: 'wrap', alignItems: 'center' }}>
+                    <Button
+                      variant="primary"
+                      loading={tenderNedBulkSyncing}
+                      disabled={tenderNedBulkSyncing}
+                      onClick={() => void syncMissingFromTenderNed()}
+                      style={{ whiteSpace: 'nowrap' }}
+                      icon={
+                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                          <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                          <polyline points="7 10 12 15 17 10" />
+                          <line x1="12" y1="15" x2="12" y2="3" />
+                        </svg>
+                      }
+                    >
+                      Synchroniseren
+                    </Button>
+                    {tenderNedBulkSyncLabel && (
+                      <span style={{ fontSize: 12, color: 'var(--text-secondary)', flex: '1 1 200px' }}>{tenderNedBulkSyncLabel}</span>
+                    )}
                     <div style={{ position: 'relative', flex: '1 1 200px', minWidth: 180 }}>
                       <svg style={{ position: 'absolute', left: 8, top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none' }} width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="var(--muted)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                         <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
@@ -499,11 +724,39 @@ export default function TendersClient({ initialTenders, userMap, allUsers, initi
                     )}
                   </div>
                   <p style={{ fontSize: 12, color: 'var(--text-secondary)', marginBottom: 8 }}>
-                    {tenderNedFilteredAndSorted.length} resultaten van {tenderNedData.content.length} aankondigingen
+                    {tenderNedFilteredAndSorted.length} resultaten van {tenderNedData.content.length} geladen (100 nieuwste; catalogus TenderNed: ca. {tenderNedData.totalElements.toLocaleString('nl-NL')} totaal)
                     {(tenderNedSearch || tenderNedProcedureFilter !== 'all') && ' (gefilterd)'}
                   </p>
-                  <div style={{ background: 'var(--off-white)', border: '1px solid var(--border)', borderRadius: 4, overflow: 'hidden' }}>
-                    <table className="tenderned-import-table" style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+                  <div
+                    className="tenderned-import-scroll"
+                    style={{
+                      background: 'var(--off-white)',
+                      border: '1px solid var(--border)',
+                      borderRadius: 4,
+                      overflowX: 'auto',
+                      overflowY: 'hidden',
+                      WebkitOverflowScrolling: 'touch',
+                    }}
+                  >
+                    <table
+                      className="tenderned-import-table"
+                      style={{
+                        width: '100%',
+                        minWidth: 1180,
+                        borderCollapse: 'collapse',
+                        fontSize: 13,
+                        tableLayout: 'fixed',
+                      }}
+                    >
+                      <colgroup>
+                        <col style={{ width: '22%' }} />
+                        <col style={{ width: '20%' }} />
+                        <col style={{ width: '10%' }} />
+                        <col style={{ width: '11%' }} />
+                        <col style={{ width: '10%' }} />
+                        <col style={{ width: '7%' }} />
+                        <col style={{ width: '20%' }} />
+                      </colgroup>
                       <thead>
                         <tr style={{ borderBottom: '2px solid var(--border)' }}>
                           {[
@@ -521,6 +774,8 @@ export default function TendersClient({ initialTenders, userMap, allUsers, initi
                                 color: 'var(--text-secondary)',
                                 cursor: 'pointer',
                                 userSelect: 'none',
+                                verticalAlign: 'top',
+                                wordWrap: 'break-word',
                               }}
                               onClick={() => toggleTenderNedSort(key)}
                             >
@@ -530,35 +785,102 @@ export default function TendersClient({ initialTenders, userMap, allUsers, initi
                               )}
                             </th>
                           ))}
-                          <th style={{ padding: '10px 12px', textAlign: 'right', fontWeight: 600, color: 'var(--text-secondary)', width: 110 }}>
+                          <th
+                            style={{
+                              padding: '10px 12px',
+                              textAlign: 'left',
+                              fontWeight: 600,
+                              color: 'var(--text-secondary)',
+                              verticalAlign: 'top',
+                              whiteSpace: 'nowrap',
+                            }}
+                          >
+                            Geschiktheid
+                          </th>
+                          <th
+                            style={{
+                              padding: '10px 12px',
+                              textAlign: 'right',
+                              fontWeight: 600,
+                              color: 'var(--text-secondary)',
+                              verticalAlign: 'top',
+                              whiteSpace: 'nowrap',
+                            }}
+                          >
                             Documenten
                           </th>
-                          <th style={{ padding: '10px 12px', width: 140 }}></th>
+                          <th
+                            style={{
+                              padding: '10px 12px',
+                              verticalAlign: 'top',
+                              textAlign: 'right',
+                              whiteSpace: 'nowrap',
+                              fontWeight: 600,
+                              color: 'var(--text-secondary)',
+                            }}
+                          >
+                            Actie
+                          </th>
                         </tr>
                       </thead>
                       <tbody>
                         {tenderNedFilteredAndSorted.length === 0 ? (
                           <tr>
-                            <td colSpan={6} style={{ padding: 32, textAlign: 'center', color: 'var(--text-secondary)' }}>
+                            <td colSpan={7} style={{ padding: 32, textAlign: 'center', color: 'var(--text-secondary)' }}>
                               Geen aankondigingen passen bij de gekozen zoek- of filteropties. Pas filters aan of wis ze.
                             </td>
                           </tr>
                         ) : tenderNedPageItems.map((item) => (
                           <tr key={item.publicatieId} style={{ borderBottom: '1px solid #F3F4F6' }}>
-                            <td data-label="Titel" style={{ padding: '10px 12px' }}>
+                            <td
+                              data-label="Titel"
+                              style={{ padding: '10px 12px', verticalAlign: 'top', wordBreak: 'break-word' }}
+                            >
                               <div style={{ fontWeight: 600, color: 'var(--navy)' }}>{displayTenderTitle(item.title)}</div>
                               {item.referenceNumber && (
                                 <div style={{ fontSize: 11, color: 'var(--muted)', fontFamily: 'IBM Plex Mono, monospace' }}>{item.referenceNumber}</div>
                               )}
                             </td>
-                            <td data-label="Aanbestedende dienst" style={{ padding: '10px 12px', color: 'var(--text-secondary)' }}>{item.contractingAuthority || '—'}</td>
-                            <td data-label="Sluitingsdatum" style={{ padding: '10px 12px', color: 'var(--text-secondary)' }}>
+                            <td
+                              data-label="Aanbestedende dienst"
+                              title={item.contractingAuthority || undefined}
+                              style={{
+                                padding: '10px 12px',
+                                color: 'var(--text-secondary)',
+                                verticalAlign: 'top',
+                                wordBreak: 'break-word',
+                              }}
+                            >
+                              {item.contractingAuthority || '—'}
+                            </td>
+                            <td
+                              data-label="Sluitingsdatum"
+                              style={{ padding: '10px 12px', color: 'var(--text-secondary)', verticalAlign: 'top', whiteSpace: 'nowrap' }}
+                            >
                               {item.deadlineSubmission ? formatDate(new Date(item.deadlineSubmission)) : '—'}
                             </td>
-                            <td data-label="Procedure" style={{ padding: '10px 12px', color: 'var(--text-secondary)' }}>{item.procedureType || '—'}</td>
+                            <td
+                              data-label="Procedure"
+                              style={{ padding: '10px 12px', color: 'var(--text-secondary)', verticalAlign: 'top', wordBreak: 'break-word' }}
+                            >
+                              {item.procedureType || '—'}
+                            </td>
+                            <td
+                              data-label="Geschiktheid"
+                              style={{ padding: '10px 12px', verticalAlign: 'top' }}
+                            >
+                              {renderTenderNedGeschiktheidCell(item.publicatieId)}
+                            </td>
                             <td
                               data-label="Documenten"
-                              style={{ padding: '10px 12px', textAlign: 'right', color: 'var(--text-secondary)', fontVariantNumeric: 'tabular-nums' }}
+                              style={{
+                                padding: '10px 12px',
+                                textAlign: 'right',
+                                color: 'var(--text-secondary)',
+                                fontVariantNumeric: 'tabular-nums',
+                                verticalAlign: 'top',
+                                whiteSpace: 'nowrap',
+                              }}
                             >
                               {tenderNedDocCountsLoading && tenderNedDocCounts[item.publicatieId] === undefined
                                 ? '…'
@@ -566,15 +888,35 @@ export default function TendersClient({ initialTenders, userMap, allUsers, initi
                                   ? '—'
                                   : tenderNedDocCounts[item.publicatieId]}
                             </td>
-                            <td data-label="Actie" style={{ padding: '10px 12px' }}>
-                              <Button
-                                variant="secondary"
-                                size="sm"
-                                loading={importingId === item.publicatieId}
-                                onClick={() => importAsTender(item)}
-                              >
-                                Als tender toevoegen
-                              </Button>
+                            <td
+                              data-label="Actie"
+                              className="tenderned-import-action-cell"
+                              style={{ padding: '10px 12px', verticalAlign: 'top', textAlign: 'right' }}
+                            >
+                              {tenderIdByTendernedPubId.has(item.publicatieId) ? (
+                                <Link
+                                  href={`/tenders/${tenderIdByTendernedPubId.get(item.publicatieId)!}`}
+                                  onClick={() => setShowTenderNedPanel(false)}
+                                  style={{ fontSize: 13, fontWeight: 600, color: 'var(--slate-blue)', whiteSpace: 'nowrap' }}
+                                >
+                                  Open in BidMind
+                                </Link>
+                              ) : isTenderNedListItemExpired(item) ? (
+                                <span style={{ fontSize: 12, color: 'var(--muted)', whiteSpace: 'nowrap' }} title="Import uit TenderNed is uitgeschakeld voor verlopen aankondigingen">
+                                  Verlopen
+                                </span>
+                              ) : (
+                                <Button
+                                  variant="secondary"
+                                  size="sm"
+                                  loading={importingId === item.publicatieId}
+                                  disabled={tenderNedBulkSyncing}
+                                  onClick={() => importAsTender(item)}
+                                  style={{ whiteSpace: 'nowrap' }}
+                                >
+                                  Als tender toevoegen
+                                </Button>
+                              )}
                             </td>
                           </tr>
                         ))}
@@ -686,6 +1028,28 @@ export default function TendersClient({ initialTenders, userMap, allUsers, initi
           <option value="go">Go</option>
           <option value="no_go">No Go</option>
         </select>
+        <select
+          value={geschiktheidFilter}
+          onChange={(e) => setGeschiktheidFilter(e.target.value)}
+          style={{
+            padding: '6px 10px',
+            border: '1px solid var(--border)',
+            borderRadius: 4,
+            fontSize: 13,
+            fontFamily: 'IBM Plex Sans, sans-serif',
+            color: 'var(--text-primary)',
+            background: 'white',
+            cursor: 'pointer',
+            outline: 'none',
+          }}
+        >
+          <option value="all">Geschiktheid: alle</option>
+          <option value="high">Match: hoog</option>
+          <option value="minscore70">Hoge score (≥70)</option>
+          <option value="medium">Match: middel</option>
+          <option value="low">Match: laag</option>
+          <option value="none">Nog geen score</option>
+        </select>
         {isMobile && (
           <select
             value={`${sortBy}:${sortDir}`}
@@ -716,9 +1080,9 @@ export default function TendersClient({ initialTenders, userMap, allUsers, initi
             <option value="value:asc">Sorteer: waarde (laag)</option>
           </select>
         )}
-        {(search || statusFilter !== 'all' || goNoGoFilter !== 'all') && (
+        {(search || statusFilter !== 'all' || goNoGoFilter !== 'all' || geschiktheidFilter !== 'all') && (
           <button
-            onClick={() => { setSearch(''); setStatusFilter('all'); setGoNoGoFilter('all') }}
+            onClick={() => { setSearch(''); setStatusFilter('all'); setGoNoGoFilter('all'); setGeschiktheidFilter('all') }}
             style={{
               background: 'none', border: 'none', color: 'var(--muted)', cursor: 'pointer',
               fontSize: 12, fontFamily: 'IBM Plex Sans, sans-serif', display: 'flex', alignItems: 'center', gap: 4,
@@ -793,8 +1157,10 @@ export default function TendersClient({ initialTenders, userMap, allUsers, initi
                       <div style={{ marginBottom: 8 }}>
                         <Badge variant="status" value={tender.status || 'new'} />
                       </div>
-                      <div style={{ fontSize: 15, fontWeight: 600, color: 'var(--navy)', lineHeight: 1.3, marginBottom: 4 }}>
-                        {displayTenderTitle(tender.title) || '—'}
+                      <div style={{ marginBottom: 4 }}>
+                        <div style={{ fontSize: 15, fontWeight: 600, color: 'var(--navy)', lineHeight: 1.3 }}>
+                          {displayTenderTitle(tender.title) || '—'}
+                        </div>
                       </div>
                       {tender.referenceNumber && (
                         <div style={{ fontSize: 11, fontFamily: 'IBM Plex Mono, monospace', color: 'var(--muted)' }}>
@@ -896,6 +1262,40 @@ export default function TendersClient({ initialTenders, userMap, allUsers, initi
                         <Badge variant="gonogo" value={tender.goNoGo || 'pending'} />
                       </div>
                     </div>
+                    <div style={{ gridColumn: '1 / -1' }}>
+                      <div style={{ fontSize: 10, fontWeight: 600, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 4 }}>
+                        Intake geschiktheid
+                      </div>
+                      {tender.intakeSuitabilityStatus === 'done' && tender.intakeSuitabilityTier ? (
+                        <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 8 }}>
+                          {tender.intakeSuitabilityScore != null && (
+                            <span
+                              style={{
+                                fontSize: 14,
+                                fontWeight: 700,
+                                fontFamily: 'IBM Plex Mono, monospace',
+                                color:
+                                  tender.intakeSuitabilityTier === 'high'
+                                    ? '#059669'
+                                    : tender.intakeSuitabilityTier === 'medium'
+                                      ? 'var(--text-secondary)'
+                                      : 'var(--muted)',
+                              }}
+                            >
+                              {tender.intakeSuitabilityScore}
+                              <span style={{ fontSize: 11, fontWeight: 500, opacity: 0.75 }}>/100</span>
+                            </span>
+                          )}
+                          <Badge variant="suitability" value={tender.intakeSuitabilityTier} />
+                        </div>
+                      ) : tender.intakeSuitabilityStatus === 'processing' ? (
+                        <span style={{ fontSize: 12, color: 'var(--muted)' }}>Bezig met beoordelen…</span>
+                      ) : tender.intakeSuitabilityStatus === 'failed' ? (
+                        <span style={{ fontSize: 12, color: 'var(--error, #DC2626)' }}>{tender.intakeSuitabilitySummary ?? 'Mislukt'}</span>
+                      ) : (
+                        <span style={{ fontSize: 12, color: 'var(--muted)' }}>Nog geen score</span>
+                      )}
+                    </div>
                   </div>
                 </motion.div>
               )
@@ -917,6 +1317,7 @@ export default function TendersClient({ initialTenders, userMap, allUsers, initi
                   { label: 'Waarde', key: 'value', width: 110 },
                   { label: 'Manager', key: null, width: 80 },
                   { label: 'Win%', key: null, width: 60 },
+                  { label: 'Geschiktheid', key: null, width: 96 },
                   { label: 'Go/No-Go', key: null, width: 90 },
                   { label: '', key: null, width: 52 },
                 ].map((col) => (
@@ -948,7 +1349,7 @@ export default function TendersClient({ initialTenders, userMap, allUsers, initi
             <tbody>
               {filtered.length === 0 ? (
                 <tr>
-                  <td colSpan={10} style={{ padding: '48px 20px', textAlign: 'center', color: 'var(--muted)' }}>
+                  <td colSpan={11} style={{ padding: '48px 20px', textAlign: 'center', color: 'var(--muted)' }}>
                     <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12 }}>
                       <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="#D1D5DB" strokeWidth="1">
                         <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
@@ -988,12 +1389,14 @@ export default function TendersClient({ initialTenders, userMap, allUsers, initi
                         <Badge variant="status" value={tender.status || 'new'} />
                       </td>
                       <td style={{ padding: '11px 14px' }}>
-                        <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--navy)', marginBottom: 2 }}>
-                          {displayTenderTitle(tender.title) || '—'}
+                        <div style={{ minWidth: 0 }}>
+                          <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--navy)', marginBottom: 2 }}>
+                            {displayTenderTitle(tender.title) || '—'}
+                          </div>
+                          {tender.contractingAuthority && (
+                            <div style={{ fontSize: 11, color: 'var(--muted)' }}>{tender.contractingAuthority}</div>
+                          )}
                         </div>
-                        {tender.contractingAuthority && (
-                          <div style={{ fontSize: 11, color: 'var(--muted)' }}>{tender.contractingAuthority}</div>
-                        )}
                       </td>
                       <td style={{ padding: '11px 14px', fontSize: 12, color: 'var(--text-secondary)' }}>
                         {tender.contractingAuthority || '—'}
@@ -1036,6 +1439,37 @@ export default function TendersClient({ initialTenders, userMap, allUsers, initi
                         }}>
                           {tender.winProbability ?? 0}%
                         </div>
+                      </td>
+                      <td style={{ padding: '11px 14px' }}>
+                        {tender.intakeSuitabilityStatus === 'done' && tender.intakeSuitabilityTier ? (
+                          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: 4 }}>
+                            {tender.intakeSuitabilityScore != null && (
+                              <span
+                                style={{
+                                  fontSize: 13,
+                                  fontWeight: 700,
+                                  fontFamily: 'IBM Plex Mono, monospace',
+                                  color:
+                                    tender.intakeSuitabilityTier === 'high'
+                                      ? '#059669'
+                                      : tender.intakeSuitabilityTier === 'medium'
+                                        ? 'var(--text-secondary)'
+                                        : 'var(--muted)',
+                                }}
+                              >
+                                {tender.intakeSuitabilityScore}
+                                <span style={{ fontSize: 10, fontWeight: 500, opacity: 0.75 }}>/100</span>
+                              </span>
+                            )}
+                            <Badge variant="suitability" value={tender.intakeSuitabilityTier} />
+                          </div>
+                        ) : tender.intakeSuitabilityStatus === 'processing' ? (
+                          <span style={{ fontSize: 11, color: 'var(--muted)' }}>Bezig…</span>
+                        ) : tender.intakeSuitabilityStatus === 'failed' ? (
+                          <span style={{ fontSize: 11, color: 'var(--error, #DC2626)' }} title={tender.intakeSuitabilitySummary ?? ''}>Mislukt</span>
+                        ) : (
+                          <span style={{ fontSize: 11, color: 'var(--muted)' }}>—</span>
+                        )}
                       </td>
                       <td style={{ padding: '11px 14px' }}>
                         <Badge variant="gonogo" value={tender.goNoGo || 'pending'} />
